@@ -8,25 +8,29 @@ using TMPro;
 public class MultiplayerManager : MonoBehaviour
 {
     [Header("Prefabs & References")]
-    public GameObject playerPrefab;     // prefab pawn harus ada skrip PlayerPawn
-    public Transform playersParent;      // parent pawn
+    public GameObject playerPrefab;    // prefab pawn harus ada skrip PlayerPawn
+    public Transform playersParent;     // parent pawn
 
     [Header("UI - Player Count Selection")]
     public GameObject playerSelectPanel;
     public Button btn2Players;
     public Button btn3Players;
     public Button btn4Players;
-    public GameObject orderPanel;       // panel pas pilih berapa player
+    public GameObject orderPanel;        // panel pas pilih berapa player
     public Button drawOrderButton;         // tombol untuk draw giliran
-    public TextMeshProUGUI poolText;       // menampilkan sisa pool
+    public TextMeshProUGUI poolText;        // menampilkan sisa pool
     public TextMeshProUGUI orderStatusText; // menampilkan siapa yg sudah draw & angkanya
 
     [Header("UI - Gameplay")]
-    public Button rollButton;              // tombol roll setelah order selesai
-    public TextMeshProUGUI infoText;       // informasi giliran / nilai dice
+    public Button rollButton;            // tombol roll (sekarang disembunyikan)
+    public TextMeshProUGUI infoText;        // informasi giliran / nilai dice
 
     [Header("Board Settings")]
     public int totalTilesInBoard = 100;
+
+    [Header("Dice Physics")]
+    // Tarik objek Dadu Fisik (yang punya script Dice.cs) ke sini
+    public Dice physicalDice;
 
     // runtime
     private List<Tiles> boardTiles = new List<Tiles>();
@@ -43,11 +47,14 @@ public class MultiplayerManager : MonoBehaviour
     private int currentTurnIdx = 0;
     private bool isActionRunning = false;
 
+    // Properti agar Dice.cs bisa cek status game
+    public bool IsActionRunning => isActionRunning;
+
     private bool isSpawning = false;
 
     // radius offset saat ada banyak pawn di satu tile
-    public float tileOffsetBaseRadius = 0.25f; // ubah sesuai kebutuhan
-    public float tileOffsetHeightStep = 0.02f; // sedikit Y offset agar tidak benar-benar saling menutupi
+    public float tileOffsetBaseRadius = 0.25f;
+    public float tileOffsetHeightStep = 0.02f;
     public float tileOffsetPerPlayer = 0.18f;
 
     void Awake()
@@ -58,7 +65,9 @@ public class MultiplayerManager : MonoBehaviour
         btn4Players.onClick.AddListener(() => OnChoosePlayerCount(4));
 
         drawOrderButton.onClick.AddListener(OnDrawOrderPressed);
-        rollButton.onClick.AddListener(OnRollPressed);
+
+        // HAPUS LISTENER TOMBOL ROLL, kita tidak pakai lagi
+        // rollButton.onClick.AddListener(OnRollPressed); 
 
         // awal UI
         orderPanel.SetActive(false);
@@ -85,21 +94,19 @@ public class MultiplayerManager : MonoBehaviour
     // -------------------------
     void OnChoosePlayerCount(int count)
     {
-        if (isSpawning) return; // mencegah double click
+        if (isSpawning) return;
         isSpawning = true;
 
-        // Hide panel segera sehingga pemain tidak bisa klik lagi
         if (playerSelectPanel != null)
             playerSelectPanel.SetActive(false);
 
-        // Start coroutine pembersihan + spawn
         StartCoroutine(ClearAndSpawnRoutine(count));
     }
 
     void SpawnPlayers(int count)
     {
         players.Clear();
-        Vector3 startPos = GetTilePosition(1); // Tile ID 1 dianggap start
+        Vector3 startPos = GetTilePosition(1);
         float offsetRadius = 0.35f;
 
         for (int i = 0; i < count; i++)
@@ -107,47 +114,50 @@ public class MultiplayerManager : MonoBehaviour
             GameObject go = Instantiate(playerPrefab, playersParent);
             go.name = $"Player{i + 1}";
             PlayerPawn pp = go.GetComponent<PlayerPawn>();
-            if (pp == null) pp = go.AddComponent<PlayerPawn>(); // fallback
+            if (pp == null) pp = go.AddComponent<PlayerPawn>();
 
-            // position with small offset so pawns don't overlap
             float angle = (360f / count) * i * Mathf.Deg2Rad;
             Vector3 offset = new Vector3(Mathf.Cos(angle), 0f, Mathf.Sin(angle)) * offsetRadius;
 
-            // set index, currentTileID
             pp.playerIndex = i;
             pp.currentTileID = 1;
             pp.SetVisualIndex(i);
-
-            // set scale seperti prefab (safety)
             go.transform.localScale = playerPrefab.transform.localScale;
-
-            // set posisi menggunakan fungsi offset yang sudah ada
             Vector3 posWithOffset = GetTilePositionWithOffset(1, pp);
             go.transform.position = posWithOffset;
-
             players.Add(pp);
 
             Debug.Log("players.Count = " + players.Count + ", selectedPlayerCount = " + selectedPlayerCount);
         }
     }
 
-    void ClearExistingPlayers()
+    IEnumerator ClearAndSpawnRoutine(int count)
     {
-        // Hapus semua child di playersParent dengan cara aman
         if (playersParent != null)
         {
-            // gunakan while loop berdasarkan childCount untuk menghindari masalah enumerasi
+            int childCount = playersParent.childCount;
+            for (int i = childCount - 1; i >= 0; i--)
+            {
+                Transform child = playersParent.GetChild(i);
+                Destroy(child.gameObject);
+            }
+            yield return null;
             while (playersParent.childCount > 0)
             {
-                Transform child = playersParent.GetChild(0);
-                DestroyImmediate(child.gameObject); // di Editor bisa gunakan DestroyImmediate, runtime gunakan Destroy
+                yield return null;
             }
         }
+
         players.Clear();
         drawnNumbers.Clear();
         turnOrder.Clear();
         drawIndex = 0;
         currentTurnIdx = 0;
+
+        selectedPlayerCount = count;
+        SpawnPlayers(count);
+        StartOrderSelection();
+        isSpawning = false;
     }
 
     // -------------------------
@@ -156,7 +166,6 @@ public class MultiplayerManager : MonoBehaviour
     void StartOrderSelection()
     {
         Debug.Log("players.Count = " + players.Count + ", selectedPlayerCount = " + selectedPlayerCount);
-        // init pool
         dicePool = new List<int> { 1, 2, 3, 4, 5, 6 };
         drawnNumbers.Clear();
         drawIndex = 0;
@@ -177,19 +186,15 @@ public class MultiplayerManager : MonoBehaviour
     void UpdateOrderStatusUI()
     {
         List<string> lines = new List<string>();
-
-        // Tampilkan sesuai jumlah pemain yang dipilih (selectedPlayerCount)
         for (int i = 0; i < selectedPlayerCount; i++)
         {
-            // Temukan player object yang punya playerIndex == i, jika ada
             PlayerPawn p = players.FirstOrDefault(x => x.playerIndex == i);
             if (p != null && drawnNumbers.ContainsKey(p))
                 lines.Add($"P{i + 1}: {drawnNumbers[p]}");
             else
                 lines.Add($"P{i + 1}: -");
         }
-
-        orderStatusText.text = string.Join("  |  ", lines);
+        orderStatusText.text = string.Join("   |   ", lines);
     }
 
     void OnDrawOrderPressed()
@@ -201,7 +206,6 @@ public class MultiplayerManager : MonoBehaviour
             return;
         }
 
-        // ambil random element dari pool dan remove
         int idx = Random.Range(0, dicePool.Count);
         int val = dicePool[idx];
         dicePool.RemoveAt(idx);
@@ -219,92 +223,8 @@ public class MultiplayerManager : MonoBehaviour
         }
         else
         {
-            // selesai draw, finalize turn order
             FinalizeTurnOrder();
         }
-    }
-
-    public Vector3 GetTilePositionWithOffset(int tileID, PlayerPawn pawn)
-    {
-        // ambil center tile
-        Vector3 center = GetTilePosition(tileID);
-
-        var onTile = players.Where(p => p.currentTileID == tileID).OrderBy(p => p.playerIndex).ToList();
-        if (!onTile.Contains(pawn))
-        {
-            var tmp = onTile.ToList();
-            tmp.Add(pawn);
-            onTile = tmp.OrderBy(p => p.playerIndex).ToList();
-        }
-
-        int count = Mathf.Max(1, onTile.Count);
-        int slot = onTile.FindIndex(p => p == pawn);
-        if (slot < 0) slot = 0;
-
-        // adaptif radius: base + perPlayer * (count-1)
-        float radius = tileOffsetBaseRadius + tileOffsetPerPlayer * (count - 1);
-
-        // jika hanya 2 pemain, atur radius lebih besar agar tidak berpelukan
-        if (count == 2) radius = Mathf.Max(radius, 0.32f);
-
-        float angle = (360f / count) * slot * Mathf.Deg2Rad;
-        Vector3 offset = new Vector3(Mathf.Cos(angle), 0f, Mathf.Sin(angle)) * radius;
-        Vector3 upOffset = Vector3.up * (tileOffsetHeightStep * slot);
-
-        return center + offset + upOffset;
-    }
-
-    IEnumerator ClearAndSpawnRoutine(int count)
-    {
-        // 1) Hapus semua child PlayersParent dengan cara aman di runtime
-        if (playersParent != null)
-        {
-            // Hapus semua child secara bertahap
-            int childCount = playersParent.childCount;
-            for (int i = childCount - 1; i >= 0; i--)
-            {
-                Transform child = playersParent.GetChild(i);
-                Destroy(child.gameObject);
-            }
-
-            // Tunggu hingga frame berikutnya agar Unity menyelesaikan Destroy()
-            yield return null;
-            // Jika masih ada child (jarang), tunggu lagi
-            while (playersParent.childCount > 0)
-            {
-                yield return null;
-            }
-        }
-
-        // 2) Reset list internal dengan pasti
-        players.Clear();
-        drawnNumbers.Clear();
-        turnOrder.Clear();
-        drawIndex = 0;
-        currentTurnIdx = 0;
-
-        // 3) Simpan selected count & spawn
-        selectedPlayerCount = count;
-        SpawnPlayers(count);
-
-        // 4) Start order selection
-        StartOrderSelection();
-
-        isSpawning = false;
-    }
-
-    IEnumerator FadeOutPanel(CanvasGroup panelGroup, float duration)
-    {
-        float startAlpha = panelGroup.alpha;
-        float time = 0f;
-        while (time < duration)
-        {
-            time += Time.deltaTime;
-            panelGroup.alpha = Mathf.Lerp(startAlpha, 0, time / duration);
-            yield return null;
-        }
-        panelGroup.alpha = 0;
-        panelGroup.gameObject.SetActive(false);
     }
 
     void FinalizeTurnOrder()
@@ -316,9 +236,8 @@ public class MultiplayerManager : MonoBehaviour
         string orderStr = "Turn Order: " + string.Join(" > ", turnOrder.Select(p => p.name));
         infoText.text = orderStr;
 
-        // tutup order panel dan aktifkan roll button untuk gameplay
         orderPanel.SetActive(false);
-        rollButton.gameObject.SetActive(true);
+        rollButton.gameObject.SetActive(false);
 
         // set current turn to first player
         currentTurnIdx = 0;
@@ -326,22 +245,41 @@ public class MultiplayerManager : MonoBehaviour
     }
 
     // -------------------------
-    // Gameplay: roll & move
+    // Gameplay: roll & move (ALUR BARU)
     // -------------------------
-    void OnRollPressed()
+
+    /// <summary>
+    /// BARU: Fungsi ini dipanggil oleh Dice.cs saat dadu selesai dilempar
+    /// </summary>
+    public void NotifyDiceThrown()
     {
         if (isActionRunning) return;
-        if (turnOrder == null || turnOrder.Count == 0) return;
-
-        PlayerPawn current = turnOrder[currentTurnIdx];
-        StartCoroutine(HandlePlayerRollAndMove(current));
+        StartCoroutine(WaitForDiceToSettleAndMove());
     }
 
-    IEnumerator HandlePlayerRollAndMove(PlayerPawn player)
+    /// <summary>
+    /// BARU: Menggantikan 'RollDiceSequence' yang lama.
+    /// </summary>
+    IEnumerator WaitForDiceToSettleAndMove()
     {
-        isActionRunning = true;
+        isActionRunning = true; // Kunci game
 
-        int roll = Random.Range(1, 7);
+        PlayerPawn current = turnOrder[currentTurnIdx];
+        infoText.text = $"{current.name} melempar dadu...";
+
+        // 1. Tunggu dadu berhenti bergulir
+        int rollResult = 0;
+        yield return StartCoroutine(physicalDice.WaitForRollToStop((result) =>
+        {
+            rollResult = result;
+        }));
+
+        // 2. Dadu berhenti, panggil HandlePlayerRollAndMove
+        yield return StartCoroutine(HandlePlayerRollAndMove(current, rollResult));
+    }
+
+    IEnumerator HandlePlayerRollAndMove(PlayerPawn player, int roll)
+    {
         infoText.text = $"{player.name} roll {roll}";
 
         // movement logic (bounce back + ladder/snake)
@@ -353,8 +291,7 @@ public class MultiplayerManager : MonoBehaviour
             // move to finish
             yield return StartCoroutine(player.MoveToTile(finalTarget, (int id) => GetTilePositionWithOffset(id, player)));
             infoText.text = $"{player.name} mencapai finish!";
-            // NOTE: game over handling not implemented here; you can add ranking etc.
-            isActionRunning = false;
+            isActionRunning = false; // Game berakhir di sini
             yield break;
         }
         else if (finalTarget > totalTilesInBoard)
@@ -363,9 +300,9 @@ public class MultiplayerManager : MonoBehaviour
             int overshoot = finalTarget - totalTilesInBoard;
             int bounceTarget = totalTilesInBoard - overshoot;
 
-            yield return StartCoroutine(player.MoveToTile(totalTilesInBoard, GetTilePosition));
+            yield return StartCoroutine(player.MoveToTile(totalTilesInBoard, (int id) => GetTilePositionWithOffset(id, player)));
             yield return new WaitForSeconds(0.2f);
-            yield return StartCoroutine(player.MoveToTile(bounceTarget, GetTilePosition));
+            yield return StartCoroutine(player.MoveToTile(bounceTarget, (int id) => GetTilePositionWithOffset(id, player)));
         }
         else
         {
@@ -395,18 +332,33 @@ public class MultiplayerManager : MonoBehaviour
 
         // selesai gerakan, lanjut ke player selanjutnya
         currentTurnIdx = (currentTurnIdx + 1) % turnOrder.Count;
-        HighlightCurrentPlayer();
+
+        // --- PERBAIKAN ---
+        // isActionRunning = false HARUS di set SEBELUM memanggil HighlightCurrentPlayer.
+        // Ini agar OnMouseDown di Dice.cs bisa mendeteksi bahwa game sudah tidak sibuk.
         isActionRunning = false;
+        HighlightCurrentPlayer();
+        // -----------------
+
         yield return null;
     }
 
     void HighlightCurrentPlayer()
     {
+        // --- BARU ---
+        // Reset dadu ke posisi awal di setiap awal giliran
+        if (physicalDice != null)
+        {
+            physicalDice.ResetDice();
+        }
+        // ------------
+
         // UI helper: tunjukkan siapa giliran sekarang
         if (turnOrder.Count == 0) return;
         PlayerPawn cur = turnOrder[currentTurnIdx];
-        infoText.text = $"Giliran: {cur.name}";
-        // bisa tambahkan visual highlight pada pawn melalui PlayerPawn.SetHighlight(bool)
+
+        infoText.text = $"Giliran: {cur.name}. Ambil & lempar dadunya!";
+
         for (int i = 0; i < players.Count; i++)
         {
             players[i].SetHighlight(players[i] == cur);
@@ -427,5 +379,50 @@ public class MultiplayerManager : MonoBehaviour
     Tiles GetTileByID(int id)
     {
         return boardTiles.FirstOrDefault(x => x.tileID == id);
+    }
+
+    // (Fungsi helper lain seperti FadeOutPanel, GetTilePositionWithOffset, dll,
+    //  tidak saya sertakan di sini karena tidak berubah, tapi pastikan mereka
+    //  masih ada di script-mu dari kode sebelumnya)
+
+    // (Pastikan fungsi-fungsi ini masih ada di kodemu)
+    public Vector3 GetTilePositionWithOffset(int tileID, PlayerPawn pawn)
+    {
+        Vector3 center = GetTilePosition(tileID);
+
+        var onTile = players.Where(p => p.currentTileID == tileID).OrderBy(p => p.playerIndex).ToList();
+        if (!onTile.Contains(pawn))
+        {
+            var tmp = onTile.ToList();
+            tmp.Add(pawn);
+            onTile = tmp.OrderBy(p => p.playerIndex).ToList();
+        }
+
+        int count = Mathf.Max(1, onTile.Count);
+        int slot = onTile.FindIndex(p => p == pawn);
+        if (slot < 0) slot = 0;
+
+        float radius = tileOffsetBaseRadius + tileOffsetPerPlayer * (count - 1);
+        if (count == 2) radius = Mathf.Max(radius, 0.32f);
+
+        float angle = (360f / count) * slot * Mathf.Deg2Rad;
+        Vector3 offset = new Vector3(Mathf.Cos(angle), 0f, Mathf.Sin(angle)) * radius;
+        Vector3 upOffset = Vector3.up * (tileOffsetHeightStep * slot);
+
+        return center + offset + upOffset;
+    }
+
+    IEnumerator FadeOutPanel(CanvasGroup panelGroup, float duration)
+    {
+        float startAlpha = panelGroup.alpha;
+        float time = 0f;
+        while (time < duration)
+        {
+            time += Time.deltaTime;
+            panelGroup.alpha = Mathf.Lerp(startAlpha, 0, time / duration);
+            yield return null;
+        }
+        panelGroup.alpha = 0;
+        panelGroup.gameObject.SetActive(false);
     }
 }

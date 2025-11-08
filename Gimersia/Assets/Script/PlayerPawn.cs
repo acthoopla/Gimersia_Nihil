@@ -49,6 +49,7 @@ public class PlayerPawn : MonoBehaviour
     }
 
     // Move per-tile (smooth)
+    // Fungsi ini SUDAH BISA menangani gerak MAJU dan MUNDUR
     public IEnumerator MoveToTile(int targetTileID, System.Func<int, Vector3> tilePosProvider)
     {
         int start = currentTileID;
@@ -56,6 +57,7 @@ public class PlayerPawn : MonoBehaviour
 
         if (targetTileID > start)
         {
+            // Gerak Maju
             for (int i = start + 1; i <= targetTileID; i++)
             {
                 Vector3 targetPos = tilePosProvider(i);
@@ -71,6 +73,7 @@ public class PlayerPawn : MonoBehaviour
         }
         else
         {
+            // Gerak Mundur (Bounce Back)
             for (int i = start - 1; i >= targetTileID; i--)
             {
                 Vector3 targetPos = tilePosProvider(i);
