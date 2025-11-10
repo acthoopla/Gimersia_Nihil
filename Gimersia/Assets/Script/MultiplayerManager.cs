@@ -5,32 +5,44 @@ using UnityEngine;
 using UnityEngine.UI;
 using TMPro;
 
+/// <summary>
+/// MultiplayerManager.cs (Versi Gabungan)
+/// Menggabungkan gameplay 'Reverse' dari Kode 1
+/// dengan integrasi UIManager dari Kode 2.
+/// </summary>
 public class MultiplayerManager : MonoBehaviour
 {
     [Header("Prefabs & References")]
-    public GameObject playerPrefab;    // prefab pawn harus ada skrip PlayerPawn
-    public Transform playersParent;     // parent pawn
+    public GameObject playerPrefab;
+    public Transform playersParent;
 
     [Header("UI - Player Count Selection")]
     public GameObject playerSelectPanel;
     public Button btn2Players;
     public Button btn3Players;
     public Button btn4Players;
-    public GameObject orderPanel;        // panel pas pilih berapa player
-    public Button drawOrderButton;         // tombol untuk draw giliran
-    public TextMeshProUGUI poolText;        // menampilkan sisa pool
-    public TextMeshProUGUI orderStatusText; // menampilkan siapa yg sudah draw & angkanya
+    public GameObject orderPanel;
+    public Button drawOrderButton;
+    public TextMeshProUGUI poolText;
+    public TextMeshProUGUI orderStatusText;
 
     [Header("UI - Gameplay")]
-    public Button rollButton;            // tombol roll (sekarang disembunyikan)
-    public TextMeshProUGUI infoText;        // informasi giliran / nilai dice
+    public Button rollButton;
+    public TextMeshProUGUI infoText;
+    public UIManager uiManager; // <-- DIAMBIL DARI KODE 2
+
+    [Header("UI - Reverse Choice")]
+    public GameObject choicePanel;
+    public Button btnMoveSelf;
+    public Button btnReverse;
+    public Button btnCancelTargetSelect;
+    public TextMeshProUGUI choiceInstructionText;
+
+    [Header("Dice Physics")]
+    public Dice physicalDice;
 
     [Header("Board Settings")]
     public int totalTilesInBoard = 100;
-
-    [Header("Dice Physics")]
-    // Tarik objek Dadu Fisik (yang punya script Dice.cs) ke sini
-    public Dice physicalDice;
 
     // runtime
     private List<Tiles> boardTiles = new List<Tiles>();
@@ -38,54 +50,63 @@ public class MultiplayerManager : MonoBehaviour
     private int selectedPlayerCount = 0;
 
     // order selection
-    private List<int> dicePool = new List<int>(); // pool 1..6
+    private List<int> dicePool = new List<int>();
     private Dictionary<PlayerPawn, int> drawnNumbers = new Dictionary<PlayerPawn, int>();
-    private int drawIndex = 0; // index pemain yang sedang harus draw (0..n-1)
+    private int drawIndex = 0;
 
     // turn order
     private List<PlayerPawn> turnOrder = new List<PlayerPawn>();
     private int currentTurnIdx = 0;
     private bool isActionRunning = false;
-
-    // Properti agar Dice.cs bisa cek status game
     public bool IsActionRunning => isActionRunning;
 
     private bool isSpawning = false;
 
-    // radius offset saat ada banyak pawn di satu tile
+    // tile offset
+    [Header("Tile Offset")]
     public float tileOffsetBaseRadius = 0.25f;
-    public float tileOffsetHeightStep = 0.02f;
     public float tileOffsetPerPlayer = 0.18f;
+    public float tileOffsetHeightStep = 0.02f;
+
+    // selection / reverse runtime
+    private bool awaitingTargetSelection = false;
+    private PlayerPawn selectedTargetForReverse = null;
+    private PlayerPawn currentActorForSelection = null;
+    private List<PlayerPawn> currentValidTargets = new List<PlayerPawn>();
+    private bool isInReverseMode = false;
 
     void Awake()
     {
-        // Hook tombol pilihan player
+        // Hook tombol jumlah player
         btn2Players.onClick.AddListener(() => OnChoosePlayerCount(2));
         btn3Players.onClick.AddListener(() => OnChoosePlayerCount(3));
         btn4Players.onClick.AddListener(() => OnChoosePlayerCount(4));
 
         drawOrderButton.onClick.AddListener(OnDrawOrderPressed);
 
-        // HAPUS LISTENER TOMBOL ROLL, kita tidak pakai lagi
-        // rollButton.onClick.AddListener(OnRollPressed); 
+        // Bind fallback global handlers
+        btnMoveSelf.onClick.AddListener(OnChoice_MoveSelf);
+        btnReverse.onClick.AddListener(OnChoice_Reverse);
+        if (btnCancelTargetSelect != null) btnCancelTargetSelect.onClick.AddListener(OnChoice_Cancel);
 
-        // awal UI
-        orderPanel.SetActive(false);
-        rollButton.gameObject.SetActive(false);
-        infoText.text = "Pilih jumlah pemain";
-        orderStatusText.text = "";
+        // UI init
+        if (orderPanel != null) orderPanel.SetActive(false);
+        if (choicePanel != null) choicePanel.SetActive(false);
+        if (choiceInstructionText != null) choiceInstructionText.gameObject.SetActive(false);
+        if (rollButton != null) rollButton.gameObject.SetActive(false);
+        if (infoText != null) infoText.text = "Pilih jumlah pemain";
+        if (orderStatusText != null) orderStatusText.text = "";
     }
 
     void Start()
     {
-        // Build board tiles lookup
         Tiles[] all = FindObjectsOfType<Tiles>();
         boardTiles = all.OrderBy(t => t.tileID).ToList();
 
         if (boardTiles.Count == 0)
         {
             Debug.LogError("Tidak menemukan Tiles di scene! Pastikan Tiles terpasang.");
-            infoText.text = "Error: Board tidak ditemukan";
+            if (infoText != null) infoText.text = "Error: Board tidak ditemukan";
         }
     }
 
@@ -96,56 +117,46 @@ public class MultiplayerManager : MonoBehaviour
     {
         if (isSpawning) return;
         isSpawning = true;
-
-        if (playerSelectPanel != null)
-            playerSelectPanel.SetActive(false);
-
+        if (playerSelectPanel != null) playerSelectPanel.SetActive(false);
         StartCoroutine(ClearAndSpawnRoutine(count));
     }
 
     void SpawnPlayers(int count)
     {
         players.Clear();
-        Vector3 startPos = GetTilePosition(1);
-        float offsetRadius = 0.35f;
-
         for (int i = 0; i < count; i++)
         {
             GameObject go = Instantiate(playerPrefab, playersParent);
-            go.name = $"Player{i + 1}";
+            go.name = $"Player_{i + 1}";
             PlayerPawn pp = go.GetComponent<PlayerPawn>();
             if (pp == null) pp = go.AddComponent<PlayerPawn>();
-
-            float angle = (360f / count) * i * Mathf.Deg2Rad;
-            Vector3 offset = new Vector3(Mathf.Cos(angle), 0f, Mathf.Sin(angle)) * offsetRadius;
 
             pp.playerIndex = i;
             pp.currentTileID = 1;
             pp.SetVisualIndex(i);
+            
+            // !! PENTING: Beri tahu pawn siapa managernya !!
+            pp.SetManager(this); 
+
             go.transform.localScale = playerPrefab.transform.localScale;
             Vector3 posWithOffset = GetTilePositionWithOffset(1, pp);
             go.transform.position = posWithOffset;
             players.Add(pp);
-
-            Debug.Log("players.Count = " + players.Count + ", selectedPlayerCount = " + selectedPlayerCount);
         }
+        Debug.Log($"SpawnPlayers: spawned {players.Count} players");
     }
 
     IEnumerator ClearAndSpawnRoutine(int count)
     {
         if (playersParent != null)
         {
-            int childCount = playersParent.childCount;
-            for (int i = childCount - 1; i >= 0; i--)
+            for (int i = playersParent.childCount - 1; i >= 0; i--)
             {
                 Transform child = playersParent.GetChild(i);
                 Destroy(child.gameObject);
             }
             yield return null;
-            while (playersParent.childCount > 0)
-            {
-                yield return null;
-            }
+            while (playersParent.childCount > 0) yield return null;
         }
 
         players.Clear();
@@ -153,7 +164,6 @@ public class MultiplayerManager : MonoBehaviour
         turnOrder.Clear();
         drawIndex = 0;
         currentTurnIdx = 0;
-
         selectedPlayerCount = count;
         SpawnPlayers(count);
         StartOrderSelection();
@@ -165,26 +175,26 @@ public class MultiplayerManager : MonoBehaviour
     // -------------------------
     void StartOrderSelection()
     {
-        Debug.Log("players.Count = " + players.Count + ", selectedPlayerCount = " + selectedPlayerCount);
         dicePool = new List<int> { 1, 2, 3, 4, 5, 6 };
         drawnNumbers.Clear();
         drawIndex = 0;
 
-        orderPanel.SetActive(true);
-        rollButton.gameObject.SetActive(false);
+        if (orderPanel != null) orderPanel.SetActive(true);
+        if (rollButton != null) rollButton.gameObject.SetActive(false);
         UpdatePoolUI();
         UpdateOrderStatusUI();
 
-        infoText.text = $"Order Selection: Giliran Player {drawIndex + 1} untuk Draw";
+        if (infoText != null) infoText.text = $"Order Selection: Giliran Player {drawIndex + 1} untuk Draw";
     }
 
     void UpdatePoolUI()
     {
-        poolText.text = "Pool: " + string.Join(", ", dicePool);
+        if (poolText != null) poolText.text = "Pool: " + string.Join(", ", dicePool);
     }
 
     void UpdateOrderStatusUI()
     {
+        if (orderStatusText == null) return;
         List<string> lines = new List<string>();
         for (int i = 0; i < selectedPlayerCount; i++)
         {
@@ -202,24 +212,20 @@ public class MultiplayerManager : MonoBehaviour
         if (drawIndex >= players.Count) return;
         if (dicePool.Count == 0)
         {
-            Debug.LogError("Pool kosong (should not happen for <=4 players)");
+            Debug.LogError("Pool kosong!");
             return;
         }
-
         int idx = Random.Range(0, dicePool.Count);
         int val = dicePool[idx];
         dicePool.RemoveAt(idx);
-
         PlayerPawn p = players[drawIndex];
         drawnNumbers[p] = val;
-
         UpdatePoolUI();
         UpdateOrderStatusUI();
-
         drawIndex++;
         if (drawIndex < players.Count)
         {
-            infoText.text = $"Order Selection: Giliran Player {drawIndex + 1} untuk Draw";
+            if (infoText != null) infoText.text = $"Order Selection: Giliran Player {drawIndex + 1} untuk Draw";
         }
         else
         {
@@ -229,144 +235,265 @@ public class MultiplayerManager : MonoBehaviour
 
     void FinalizeTurnOrder()
     {
-        // sort players by drawnNumbers DESC
         turnOrder = drawnNumbers.OrderByDescending(kv => kv.Value).Select(kv => kv.Key).ToList();
 
-        // display order
         string orderStr = "Turn Order: " + string.Join(" > ", turnOrder.Select(p => p.name));
-        infoText.text = orderStr;
+        if (infoText != null) infoText.text = orderStr;
 
-        orderPanel.SetActive(false);
-        rollButton.gameObject.SetActive(false);
+        if (orderPanel != null) orderPanel.SetActive(false);
+        if (rollButton != null) rollButton.gameObject.SetActive(false);
 
-        // set current turn to first player
+        // --- TAMBAHAN DARI KODE 2 ---
+        // Beri tahu UIManager untuk membuat daftar UI pemain
+        if (uiManager != null)
+        {
+            uiManager.SetupPlayerList(turnOrder);
+        }
+        // -------------------------
+
         currentTurnIdx = 0;
         HighlightCurrentPlayer();
     }
 
     // -------------------------
-    // Gameplay: roll & move (ALUR BARU)
+    // Gameplay: dice + move + reverse
     // -------------------------
-
-    /// <summary>
-    /// BARU: Fungsi ini dipanggil oleh Dice.cs saat dadu selesai dilempar
-    /// </summary>
     public void NotifyDiceThrown()
     {
         if (isActionRunning) return;
         StartCoroutine(WaitForDiceToSettleAndMove());
     }
 
-    /// <summary>
-    /// BARU: Menggantikan 'RollDiceSequence' yang lama.
-    /// </summary>
     IEnumerator WaitForDiceToSettleAndMove()
     {
-        isActionRunning = true; // Kunci game
-
+        isActionRunning = true;
         PlayerPawn current = turnOrder[currentTurnIdx];
-        infoText.text = $"{current.name} melempar dadu...";
+        if (infoText != null) infoText.text = $"{current.name} melempar dadu...";
 
-        // 1. Tunggu dadu berhenti bergulir
         int rollResult = 0;
-        yield return StartCoroutine(physicalDice.WaitForRollToStop((result) =>
-        {
-            rollResult = result;
-        }));
+        yield return StartCoroutine(physicalDice.WaitForRollToStop((result) => { rollResult = result; }));
 
-        // 2. Dadu berhenti, panggil HandlePlayerRollAndMove
         yield return StartCoroutine(HandlePlayerRollAndMove(current, rollResult));
     }
 
     IEnumerator HandlePlayerRollAndMove(PlayerPawn player, int roll)
     {
-        infoText.text = $"{player.name} roll {roll}";
+        if (infoText != null) infoText.text = $"{player.name} roll {roll}";
 
-        // movement logic (bounce back + ladder/snake)
-        int startTile = player.currentTileID;
-        int finalTarget = startTile + roll;
+        List<PlayerPawn> validTargets = GetValidReverseTargets(player);
+        bool didReverse = false;
 
-        if (finalTarget == totalTilesInBoard)
+        if (validTargets.Count > 0)
         {
-            // move to finish
-            yield return StartCoroutine(player.MoveToTile(finalTarget, (int id) => GetTilePositionWithOffset(id, player)));
-            infoText.text = $"{player.name} mencapai finish!";
-            isActionRunning = false; // Game berakhir di sini
-            yield break;
-        }
-        else if (finalTarget > totalTilesInBoard)
-        {
-            // move to 100 then bounce back
-            int overshoot = finalTarget - totalTilesInBoard;
-            int bounceTarget = totalTilesInBoard - overshoot;
+            // setup selection state
+            currentValidTargets = GetValidReverseTargets(player);
+            currentActorForSelection = player;
+            selectedTargetForReverse = null;
+            awaitingTargetSelection = false;
+            isInReverseMode = false;
 
-            yield return StartCoroutine(player.MoveToTile(totalTilesInBoard, (int id) => GetTilePositionWithOffset(id, player)));
-            yield return new WaitForSeconds(0.2f);
-            yield return StartCoroutine(player.MoveToTile(bounceTarget, (int id) => GetTilePositionWithOffset(id, player)));
-        }
-        else
-        {
-            // normal move
-            yield return StartCoroutine(player.MoveToTile(finalTarget, (int id) => GetTilePositionWithOffset(id, player)));
-        }
+            if (choicePanel != null) choicePanel.SetActive(true);
+            foreach (var p in players) p.SetHighlight(currentValidTargets.Contains(p));
 
-        // after landing, check tile special (ladder/snake) using Tiles component
-        Tiles landed = GetTileByID(player.currentTileID);
-        if (landed != null)
-        {
-            if (landed.type == TileType.LadderStart && landed.targetTile != null)
+            // set UI initial
+            if (btnMoveSelf != null) btnMoveSelf.gameObject.SetActive(true);
+            if (btnReverse != null) btnReverse.gameObject.SetActive(true);
+            if (btnCancelTargetSelect != null) btnCancelTargetSelect.gameObject.SetActive(false);
+            if (choiceInstructionText != null) { choiceInstructionText.gameObject.SetActive(false); choiceInstructionText.text = ""; }
+
+            // clear old listeners and attach local handlers
+            btnMoveSelf.onClick.RemoveAllListeners();
+            btnReverse.onClick.RemoveAllListeners();
+            if (btnCancelTargetSelect != null) btnCancelTargetSelect.onClick.RemoveAllListeners();
+
+            bool moveSelfChosenLocal = false;
+
+            // local handlers
+            void OnBtnMoveSelfLocal()
             {
-                infoText.text = $"{player.name} Naik tangga!";
-                yield return new WaitForSeconds(0.2f);
-                int targetID = landed.targetTile.tileID;
-                yield return StartCoroutine(player.TeleportToTile(targetID, (int id) => GetTilePositionWithOffset(id, player)));
+                moveSelfChosenLocal = true;
+                Debug.Log("MoveSelf chosen local");
             }
-            else if (landed.type == TileType.SnakeStart && landed.targetTile != null)
+            void OnBtnReverseLocal()
             {
-                infoText.text = $"{player.name} Turun ular!";
+                EnterReverseSelectionUI();
+                awaitingTargetSelection = true;
+                selectedTargetForReverse = null;
+                Debug.Log($"Entered reverse mode for {player.name}. awaitingTargetSelection={awaitingTargetSelection}");
+            }
+            void OnBtnCancelLocal()
+            {
+                awaitingTargetSelection = false;
+                selectedTargetForReverse = null;
+                ExitReverseSelectionUI();
+                Debug.Log("Reverse selection cancelled (local)");
+            }
+
+            // attach handlers
+            btnMoveSelf.onClick.AddListener(OnBtnMoveSelfLocal);
+            btnReverse.onClick.AddListener(OnBtnReverseLocal);
+            if (btnCancelTargetSelect != null) btnCancelTargetSelect.onClick.AddListener(OnBtnCancelLocal);
+
+            // selection wait loop
+            while (true)
+            {
+                // jika pemain sudah klik target -> proses langsung
+                if (selectedTargetForReverse != null)
+                {
+                    PlayerPawn target = selectedTargetForReverse;
+                    if (target == null || target.wasReversedThisCycle || target.currentTileID <= 1)
+                    {
+                        Debug.LogWarning("Target tidak valid saat eksekusi reverse. Fall back ke Move Self.");
+                        btnMoveSelf.onClick.RemoveListener(OnBtnMoveSelfLocal);
+                        btnReverse.onClick.RemoveListener(OnBtnReverseLocal);
+                        if (btnCancelTargetSelect != null) btnCancelTargetSelect.onClick.RemoveListener(OnBtnCancelLocal);
+                        CleanupChoiceUI();
+                        ExitReverseSelectionUI();
+                        break;
+                    }
+
+                    // execute reverse move
+                    int targetStart = target.currentTileID;
+                    int targetFinal = Mathf.Max(1, targetStart - roll);
+                    yield return StartCoroutine(target.MoveToTile(targetFinal, (int id) => GetTilePositionWithOffset(id, target)));
+
+                    // landing special check
+                    Tiles landed = GetTileByID(target.currentTileID);
+                    if (landed != null)
+                    {
+                        if (landed.type == TileType.LadderStart && landed.targetTile != null)
+                        {
+                            yield return new WaitForSeconds(0.1f);
+                            int tid = landed.targetTile.tileID;
+                            yield return StartCoroutine(target.TeleportToTile(tid, (int id) => GetTilePositionWithOffset(id, target)));
+                        }
+                        else if (landed.type == TileType.SnakeStart && landed.targetTile != null)
+                        {
+                            yield return new WaitForSeconds(0.1f);
+                            int tid = landed.targetTile.tileID;
+                            yield return StartCoroutine(target.TeleportToTile(tid, (int id) => GetTilePositionWithOffset(id, target)));
+                        }
+                    }
+
+                    // mark reversed & badge
+                    target.wasReversedThisCycle = true;
+                    target.ShowReversedBadge(true);
+                    if (currentValidTargets != null && currentValidTargets.Contains(target))
+                        currentValidTargets.Remove(target);
+
+                    // cleanup listeners & UI
+                    btnMoveSelf.onClick.RemoveListener(OnBtnMoveSelfLocal);
+                    btnReverse.onClick.RemoveListener(OnBtnReverseLocal);
+                    if (btnCancelTargetSelect != null) btnCancelTargetSelect.onClick.RemoveListener(OnBtnCancelLocal);
+                    CleanupChoiceUI();
+                    ExitReverseSelectionUI();
+                    didReverse = true;
+                    break;
+                }
+
+                // jika MoveSelf dipilih
+                if (moveSelfChosenLocal)
+                {
+                    btnMoveSelf.onClick.RemoveListener(OnBtnMoveSelfLocal);
+                    btnReverse.onClick.RemoveListener(OnBtnReverseLocal);
+                    if (btnCancelTargetSelect != null) btnCancelTargetSelect.onClick.RemoveListener(OnBtnCancelLocal);
+                    CleanupChoiceUI();
+                    ExitReverseSelectionUI();
+                    break;
+                }
+                yield return null;
+            } // end while selection
+        } // end if validTargets
+
+        // jika belum reverse -> lakukan move self
+        if (!didReverse)
+        {
+            int startTile = player.currentTileID;
+            int finalTarget = startTile + roll;
+
+            if (finalTarget == totalTilesInBoard)
+            {
+                yield return StartCoroutine(player.MoveToTile(finalTarget, (int id) => GetTilePositionWithOffset(id, player)));
+                if (infoText != null) infoText.text = $"{player.name} mencapai finish!";
+                // Game over logic di sini
+                isActionRunning = false; // Buka kunci game
+                yield break; // Hentikan giliran
+            }
+            else if (finalTarget > totalTilesInBoard)
+            {
+                int overshoot = finalTarget - totalTilesInBoard;
+                int bounceTarget = totalTilesInBoard - overshoot;
+                yield return StartCoroutine(player.MoveToTile(totalTilesInBoard, (int id) => GetTilePositionWithOffset(id, player)));
                 yield return new WaitForSeconds(0.2f);
-                int targetID = landed.targetTile.tileID;
-                yield return StartCoroutine(player.TeleportToTile(targetID, (int id) => GetTilePositionWithOffset(id, player)));
+                yield return StartCoroutine(player.MoveToTile(bounceTarget, (int id) => GetTilePositionWithOffset(id, player)));
+            }
+            else
+            {
+                yield return StartCoroutine(player.MoveToTile(finalTarget, (int id) => GetTilePositionWithOffset(id, player)));
+            }
+
+            Tiles landed2 = GetTileByID(player.currentTileID);
+            if (landed2 != null)
+            {
+                if (landed2.type == TileType.LadderStart && landed2.targetTile != null)
+                {
+                    if (infoText != null) infoText.text = $"{player.name} Naik tangga!";
+                    yield return new WaitForSeconds(0.2f);
+                    int targetID = landed2.targetTile.tileID;
+                    yield return StartCoroutine(player.TeleportToTile(targetID, (int id) => GetTilePositionWithOffset(id, player)));
+                }
+                else if (landed2.type == TileType.SnakeStart && landed2.targetTile != null)
+                {
+                    if (infoText != null) infoText.text = $"{player.name} Turun ular!";
+                    yield return new WaitForSeconds(0.2f);
+                    int targetID = landed2.targetTile.tileID;
+                    yield return StartCoroutine(player.TeleportToTile(targetID, (int id) => GetTilePositionWithOffset(id, player)));
+                }
             }
         }
 
-        // selesai gerakan, lanjut ke player selanjutnya
+        // advance turn & reset cycle jika perlu
         currentTurnIdx = (currentTurnIdx + 1) % turnOrder.Count;
 
-        // --- PERBAIKAN ---
-        // isActionRunning = false HARUS di set SEBELUM memanggil HighlightCurrentPlayer.
-        // Ini agar OnMouseDown di Dice.cs bisa mendeteksi bahwa game sudah tidak sibuk.
+        if (currentTurnIdx == 0)
+        {
+            foreach (var p in players)
+            {
+                p.wasReversedThisCycle = false;
+                p.ShowReversedBadge(false);
+            }
+            Debug.Log("Cycle selesai: reset wasReversedThisCycle dan badge.");
+        }
+
         isActionRunning = false;
         HighlightCurrentPlayer();
-        // -----------------
 
-        yield return null;
+        yield break;
     }
 
     void HighlightCurrentPlayer()
     {
-        // --- BARU ---
-        // Reset dadu ke posisi awal di setiap awal giliran
-        if (physicalDice != null)
-        {
-            physicalDice.ResetDice();
-        }
-        // ------------
+        if (physicalDice != null) physicalDice.ResetDice();
 
-        // UI helper: tunjukkan siapa giliran sekarang
         if (turnOrder.Count == 0) return;
         PlayerPawn cur = turnOrder[currentTurnIdx];
 
-        infoText.text = $"Giliran: {cur.name}. Ambil & lempar dadunya!";
+        if (infoText != null) infoText.text = $"Giliran: {cur.name}. Ambil & lempar dadunya!";
 
         for (int i = 0; i < players.Count; i++)
-        {
             players[i].SetHighlight(players[i] == cur);
+
+        // --- TAMBAHAN DARI KODE 2 ---
+        // Beri tahu UIManager siapa pemain yang aktif
+        if (uiManager != null)
+        {
+            uiManager.UpdateActivePlayer(currentTurnIdx);
         }
+        // -------------------------
     }
 
     // -------------------------
-    // Helpers utk board tiles
+    // Board helpers
     // -------------------------
     Vector3 GetTilePosition(int tileID)
     {
@@ -381,15 +508,9 @@ public class MultiplayerManager : MonoBehaviour
         return boardTiles.FirstOrDefault(x => x.tileID == id);
     }
 
-    // (Fungsi helper lain seperti FadeOutPanel, GetTilePositionWithOffset, dll,
-    //  tidak saya sertakan di sini karena tidak berubah, tapi pastikan mereka
-    //  masih ada di script-mu dari kode sebelumnya)
-
-    // (Pastikan fungsi-fungsi ini masih ada di kodemu)
     public Vector3 GetTilePositionWithOffset(int tileID, PlayerPawn pawn)
     {
         Vector3 center = GetTilePosition(tileID);
-
         var onTile = players.Where(p => p.currentTileID == tileID).OrderBy(p => p.playerIndex).ToList();
         if (!onTile.Contains(pawn))
         {
@@ -397,18 +518,14 @@ public class MultiplayerManager : MonoBehaviour
             tmp.Add(pawn);
             onTile = tmp.OrderBy(p => p.playerIndex).ToList();
         }
-
         int count = Mathf.Max(1, onTile.Count);
         int slot = onTile.FindIndex(p => p == pawn);
         if (slot < 0) slot = 0;
-
         float radius = tileOffsetBaseRadius + tileOffsetPerPlayer * (count - 1);
         if (count == 2) radius = Mathf.Max(radius, 0.32f);
-
         float angle = (360f / count) * slot * Mathf.Deg2Rad;
         Vector3 offset = new Vector3(Mathf.Cos(angle), 0f, Mathf.Sin(angle)) * radius;
         Vector3 upOffset = Vector3.up * (tileOffsetHeightStep * slot);
-
         return center + offset + upOffset;
     }
 
@@ -424,5 +541,103 @@ public class MultiplayerManager : MonoBehaviour
         }
         panelGroup.alpha = 0;
         panelGroup.gameObject.SetActive(false);
+    }
+
+    // -------------------------
+    // Reverse helpers
+    // -------------------------
+    public List<PlayerPawn> GetValidReverseTargets(PlayerPawn actor)
+    {
+        return players.Where(p => p != actor && p.currentTileID > 1 && !p.wasReversedThisCycle).ToList();
+    }
+
+    // Dipanggil dari PlayerPawn.OnMouseDown()
+    public void OnPawnClicked(PlayerPawn clickedPawn)
+    {
+        if (!isInReverseMode)
+        {
+            Debug.Log($"Pawn clicked ignored: isInReverseMode={isInReverseMode}");
+            return;
+        }
+        if (currentActorForSelection != null && clickedPawn == currentActorForSelection)
+        {
+            Debug.Log("Pawn clicked is actor itself - ignored");
+            return;
+        }
+        if (currentValidTargets == null || !currentValidTargets.Contains(clickedPawn))
+        {
+            Debug.Log($"Pawn clicked not in valid targets: {clickedPawn.name}");
+            return;
+        }
+        selectedTargetForReverse = clickedPawn;
+        currentValidTargets.Remove(clickedPawn);
+        Debug.Log($"Pawn clicked accepted: {clickedPawn.name} selected as reverse target");
+    }
+
+    private void CleanupChoiceUI()
+    {
+        if (choicePanel != null) choicePanel.SetActive(false);
+        foreach (var p in players) p.SetHighlight(false);
+        awaitingTargetSelection = false;
+        selectedTargetForReverse = null;
+        currentActorForSelection = null;
+        currentValidTargets = new List<PlayerPawn>();
+        btnMoveSelf.onClick.RemoveAllListeners();
+        btnReverse.onClick.RemoveAllListeners();
+        if (btnCancelTargetSelect != null) btnCancelTargetSelect.onClick.RemoveAllListeners();
+        btnMoveSelf.onClick.AddListener(OnChoice_MoveSelf);
+        btnReverse.onClick.AddListener(OnChoice_Reverse);
+        if (btnCancelTargetSelect != null) btnCancelTargetSelect.onClick.AddListener(OnChoice_Cancel);
+        if (choiceInstructionText != null) { choiceInstructionText.gameObject.SetActive(false); choiceInstructionText.text = ""; }
+    }
+
+    void EnterReverseSelectionUI()
+    {
+        isInReverseMode = true;
+        if (btnMoveSelf != null) btnMoveSelf.gameObject.SetActive(false);
+        if (btnReverse != null) btnReverse.gameObject.SetActive(false);
+        if (btnCancelTargetSelect != null) btnCancelTargetSelect.gameObject.SetActive(true);
+        if (choiceInstructionText != null)
+        {
+            choiceInstructionText.gameObject.SetActive(true);
+            choiceInstructionText.text = "Choose Enemy To Reverse";
+        }
+        if (infoText != null) infoText.text = "Pilih lawan untuk dimundurkan (klik pawn) atau Cancel.";
+    }
+
+    void ExitReverseSelectionUI()
+    {
+        isInReverseMode = false;
+        if (btnMoveSelf != null) btnMoveSelf.gameObject.SetActive(true);
+        if (btnReverse != null) btnReverse.gameObject.SetActive(true);
+        if (btnCancelTargetSelect != null) btnCancelTargetSelect.gameObject.SetActive(false);
+        if (choiceInstructionText != null)
+        {
+            choiceInstructionText.gameObject.SetActive(false);
+            choiceInstructionText.text = "";
+        }
+        if (infoText != null && turnOrder.Count > 0)
+        {
+            PlayerPawn cur = turnOrder[currentTurnIdx];
+            infoText.text = $"Giliran: {cur.name}. Ambil & lempar dadunya!";
+        }
+    }
+
+    // fallback global handlers
+    void OnChoice_MoveSelf()
+    {
+        awaitingTargetSelection = false;
+        selectedTargetForReverse = null;
+    }
+    void OnChoice_Reverse()
+    {
+        isInReverseMode = true;
+        awaitingTargetSelection = true;
+    }
+    void OnChoice_Cancel()
+    {
+        awaitingTargetSelection = false;
+        selectedTargetForReverse = null;
+        ExitReverseSelectionUI();
     }
 }
