@@ -5,15 +5,10 @@ using UnityEngine;
 using UnityEngine.UI;
 using TMPro;
 
-/// <summary>
-/// MultiplayerManager.cs (Versi Gabungan)
-/// Menggabungkan gameplay 'Reverse' dari Kode 1
-/// dengan integrasi UIManager dari Kode 2.
-/// </summary>
 public class MultiplayerManager : MonoBehaviour
 {
     [Header("Prefabs & References")]
-    public GameObject playerPrefab;
+    public GameObject[] playerPrefabs; // Array prefab untuk P1, P2, P3, P4
     public Transform playersParent;
 
     [Header("UI - Player Count Selection")]
@@ -27,9 +22,9 @@ public class MultiplayerManager : MonoBehaviour
     public TextMeshProUGUI orderStatusText;
 
     [Header("UI - Gameplay")]
-    public Button rollButton;
+    // public Button rollButton; // <-- DIHAPUS
     public TextMeshProUGUI infoText;
-    public UIManager uiManager; // <-- DIAMBIL DARI KODE 2
+    public UIManager uiManager;
 
     [Header("UI - Reverse Choice")]
     public GameObject choicePanel;
@@ -44,31 +39,22 @@ public class MultiplayerManager : MonoBehaviour
     [Header("Board Settings")]
     public int totalTilesInBoard = 100;
 
-    // runtime
+    // ... (sisa variabel runtime tidak berubah) ...
     private List<Tiles> boardTiles = new List<Tiles>();
     private List<PlayerPawn> players = new List<PlayerPawn>();
     private int selectedPlayerCount = 0;
-
-    // order selection
     private List<int> dicePool = new List<int>();
     private Dictionary<PlayerPawn, int> drawnNumbers = new Dictionary<PlayerPawn, int>();
     private int drawIndex = 0;
-
-    // turn order
     private List<PlayerPawn> turnOrder = new List<PlayerPawn>();
     private int currentTurnIdx = 0;
     private bool isActionRunning = false;
     public bool IsActionRunning => isActionRunning;
-
     private bool isSpawning = false;
-
-    // tile offset
     [Header("Tile Offset")]
     public float tileOffsetBaseRadius = 0.25f;
     public float tileOffsetPerPlayer = 0.18f;
     public float tileOffsetHeightStep = 0.02f;
-
-    // selection / reverse runtime
     private bool awaitingTargetSelection = false;
     private PlayerPawn selectedTargetForReverse = null;
     private PlayerPawn currentActorForSelection = null;
@@ -93,7 +79,7 @@ public class MultiplayerManager : MonoBehaviour
         if (orderPanel != null) orderPanel.SetActive(false);
         if (choicePanel != null) choicePanel.SetActive(false);
         if (choiceInstructionText != null) choiceInstructionText.gameObject.SetActive(false);
-        if (rollButton != null) rollButton.gameObject.SetActive(false);
+        // if (rollButton != null) rollButton.gameObject.SetActive(false); // <-- DIHAPUS
         if (infoText != null) infoText.text = "Pilih jumlah pemain";
         if (orderStatusText != null) orderStatusText.text = "";
     }
@@ -124,9 +110,18 @@ public class MultiplayerManager : MonoBehaviour
     void SpawnPlayers(int count)
     {
         players.Clear();
+
+        if (playerPrefabs == null || playerPrefabs.Length < count)
+        {
+            Debug.LogError($"Error: Prefab pemain tidak cukup! Butuh {count}, tapi hanya ada {playerPrefabs.Length} di Inspector.");
+            return;
+        }
+
         for (int i = 0; i < count; i++)
         {
-            GameObject go = Instantiate(playerPrefab, playersParent);
+            GameObject prefabToSpawn = playerPrefabs[i];
+            GameObject go = Instantiate(prefabToSpawn, playersParent);
+
             go.name = $"Player_{i + 1}";
             PlayerPawn pp = go.GetComponent<PlayerPawn>();
             if (pp == null) pp = go.AddComponent<PlayerPawn>();
@@ -134,11 +129,8 @@ public class MultiplayerManager : MonoBehaviour
             pp.playerIndex = i;
             pp.currentTileID = 1;
             pp.SetVisualIndex(i);
-            
-            // !! PENTING: Beri tahu pawn siapa managernya !!
-            pp.SetManager(this); 
+            pp.SetManager(this);
 
-            go.transform.localScale = playerPrefab.transform.localScale;
             Vector3 posWithOffset = GetTilePositionWithOffset(1, pp);
             go.transform.position = posWithOffset;
             players.Add(pp);
@@ -180,7 +172,7 @@ public class MultiplayerManager : MonoBehaviour
         drawIndex = 0;
 
         if (orderPanel != null) orderPanel.SetActive(true);
-        if (rollButton != null) rollButton.gameObject.SetActive(false);
+        // if (rollButton != null) rollButton.gameObject.SetActive(false); // <-- Referensi ini juga tidak perlu
         UpdatePoolUI();
         UpdateOrderStatusUI();
 
@@ -241,15 +233,12 @@ public class MultiplayerManager : MonoBehaviour
         if (infoText != null) infoText.text = orderStr;
 
         if (orderPanel != null) orderPanel.SetActive(false);
-        if (rollButton != null) rollButton.gameObject.SetActive(false);
+        // if (rollButton != null) rollButton.gameObject.SetActive(false); // <-- DIHAPUS
 
-        // --- TAMBAHAN DARI KODE 2 ---
-        // Beri tahu UIManager untuk membuat daftar UI pemain
         if (uiManager != null)
         {
             uiManager.SetupPlayerList(turnOrder);
         }
-        // -------------------------
 
         currentTurnIdx = 0;
         HighlightCurrentPlayer();
@@ -285,7 +274,6 @@ public class MultiplayerManager : MonoBehaviour
 
         if (validTargets.Count > 0)
         {
-            // setup selection state
             currentValidTargets = GetValidReverseTargets(player);
             currentActorForSelection = player;
             selectedTargetForReverse = null;
@@ -295,49 +283,26 @@ public class MultiplayerManager : MonoBehaviour
             if (choicePanel != null) choicePanel.SetActive(true);
             foreach (var p in players) p.SetHighlight(currentValidTargets.Contains(p));
 
-            // set UI initial
             if (btnMoveSelf != null) btnMoveSelf.gameObject.SetActive(true);
             if (btnReverse != null) btnReverse.gameObject.SetActive(true);
             if (btnCancelTargetSelect != null) btnCancelTargetSelect.gameObject.SetActive(false);
             if (choiceInstructionText != null) { choiceInstructionText.gameObject.SetActive(false); choiceInstructionText.text = ""; }
 
-            // clear old listeners and attach local handlers
             btnMoveSelf.onClick.RemoveAllListeners();
             btnReverse.onClick.RemoveAllListeners();
             if (btnCancelTargetSelect != null) btnCancelTargetSelect.onClick.RemoveAllListeners();
 
             bool moveSelfChosenLocal = false;
+            void OnBtnMoveSelfLocal() { moveSelfChosenLocal = true; Debug.Log("MoveSelf chosen local"); }
+            void OnBtnReverseLocal() { EnterReverseSelectionUI(); awaitingTargetSelection = true; selectedTargetForReverse = null; Debug.Log($"Entered reverse mode for {player.name}. awaitingTargetSelection={awaitingTargetSelection}"); }
+            void OnBtnCancelLocal() { awaitingTargetSelection = false; selectedTargetForReverse = null; ExitReverseSelectionUI(); Debug.Log("Reverse selection cancelled (local)"); }
 
-            // local handlers
-            void OnBtnMoveSelfLocal()
-            {
-                moveSelfChosenLocal = true;
-                Debug.Log("MoveSelf chosen local");
-            }
-            void OnBtnReverseLocal()
-            {
-                EnterReverseSelectionUI();
-                awaitingTargetSelection = true;
-                selectedTargetForReverse = null;
-                Debug.Log($"Entered reverse mode for {player.name}. awaitingTargetSelection={awaitingTargetSelection}");
-            }
-            void OnBtnCancelLocal()
-            {
-                awaitingTargetSelection = false;
-                selectedTargetForReverse = null;
-                ExitReverseSelectionUI();
-                Debug.Log("Reverse selection cancelled (local)");
-            }
-
-            // attach handlers
             btnMoveSelf.onClick.AddListener(OnBtnMoveSelfLocal);
             btnReverse.onClick.AddListener(OnBtnReverseLocal);
             if (btnCancelTargetSelect != null) btnCancelTargetSelect.onClick.AddListener(OnBtnCancelLocal);
 
-            // selection wait loop
             while (true)
             {
-                // jika pemain sudah klik target -> proses langsung
                 if (selectedTargetForReverse != null)
                 {
                     PlayerPawn target = selectedTargetForReverse;
@@ -352,12 +317,10 @@ public class MultiplayerManager : MonoBehaviour
                         break;
                     }
 
-                    // execute reverse move
                     int targetStart = target.currentTileID;
                     int targetFinal = Mathf.Max(1, targetStart - roll);
                     yield return StartCoroutine(target.MoveToTile(targetFinal, (int id) => GetTilePositionWithOffset(id, target)));
 
-                    // landing special check
                     Tiles landed = GetTileByID(target.currentTileID);
                     if (landed != null)
                     {
@@ -374,14 +337,11 @@ public class MultiplayerManager : MonoBehaviour
                             yield return StartCoroutine(target.TeleportToTile(tid, (int id) => GetTilePositionWithOffset(id, target)));
                         }
                     }
-
-                    // mark reversed & badge
                     target.wasReversedThisCycle = true;
                     target.ShowReversedBadge(true);
                     if (currentValidTargets != null && currentValidTargets.Contains(target))
                         currentValidTargets.Remove(target);
 
-                    // cleanup listeners & UI
                     btnMoveSelf.onClick.RemoveListener(OnBtnMoveSelfLocal);
                     btnReverse.onClick.RemoveListener(OnBtnReverseLocal);
                     if (btnCancelTargetSelect != null) btnCancelTargetSelect.onClick.RemoveListener(OnBtnCancelLocal);
@@ -390,8 +350,6 @@ public class MultiplayerManager : MonoBehaviour
                     didReverse = true;
                     break;
                 }
-
-                // jika MoveSelf dipilih
                 if (moveSelfChosenLocal)
                 {
                     btnMoveSelf.onClick.RemoveListener(OnBtnMoveSelfLocal);
@@ -402,10 +360,9 @@ public class MultiplayerManager : MonoBehaviour
                     break;
                 }
                 yield return null;
-            } // end while selection
-        } // end if validTargets
+            }
+        }
 
-        // jika belum reverse -> lakukan move self
         if (!didReverse)
         {
             int startTile = player.currentTileID;
@@ -415,9 +372,8 @@ public class MultiplayerManager : MonoBehaviour
             {
                 yield return StartCoroutine(player.MoveToTile(finalTarget, (int id) => GetTilePositionWithOffset(id, player)));
                 if (infoText != null) infoText.text = $"{player.name} mencapai finish!";
-                // Game over logic di sini
-                isActionRunning = false; // Buka kunci game
-                yield break; // Hentikan giliran
+                isActionRunning = false;
+                yield break;
             }
             else if (finalTarget > totalTilesInBoard)
             {
@@ -452,7 +408,6 @@ public class MultiplayerManager : MonoBehaviour
             }
         }
 
-        // advance turn & reset cycle jika perlu
         currentTurnIdx = (currentTurnIdx + 1) % turnOrder.Count;
 
         if (currentTurnIdx == 0)
@@ -483,13 +438,10 @@ public class MultiplayerManager : MonoBehaviour
         for (int i = 0; i < players.Count; i++)
             players[i].SetHighlight(players[i] == cur);
 
-        // --- TAMBAHAN DARI KODE 2 ---
-        // Beri tahu UIManager siapa pemain yang aktif
         if (uiManager != null)
         {
             uiManager.UpdateActivePlayer(currentTurnIdx);
         }
-        // -------------------------
     }
 
     // -------------------------
@@ -551,7 +503,6 @@ public class MultiplayerManager : MonoBehaviour
         return players.Where(p => p != actor && p.currentTileID > 1 && !p.wasReversedThisCycle).ToList();
     }
 
-    // Dipanggil dari PlayerPawn.OnMouseDown()
     public void OnPawnClicked(PlayerPawn clickedPawn)
     {
         if (!isInReverseMode)
@@ -623,7 +574,6 @@ public class MultiplayerManager : MonoBehaviour
         }
     }
 
-    // fallback global handlers
     void OnChoice_MoveSelf()
     {
         awaitingTargetSelection = false;
