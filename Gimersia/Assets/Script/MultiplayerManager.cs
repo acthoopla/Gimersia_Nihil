@@ -22,8 +22,8 @@ public class MultiplayerManager : MonoBehaviour
     public TextMeshProUGUI orderStatusText; // menampilkan siapa yg sudah draw & angkanya
 
     [Header("UI - Gameplay")]
-    public Button rollButton;            // tombol roll (sekarang disembunyikan)
     public TextMeshProUGUI infoText;        // informasi giliran / nilai dice
+    public UIManager uiManager; // <-- TAMBAHKAN: Referensi ke UIManager
 
     [Header("Board Settings")]
     public int totalTilesInBoard = 100;
@@ -66,12 +66,8 @@ public class MultiplayerManager : MonoBehaviour
 
         drawOrderButton.onClick.AddListener(OnDrawOrderPressed);
 
-        // HAPUS LISTENER TOMBOL ROLL, kita tidak pakai lagi
-        // rollButton.onClick.AddListener(OnRollPressed); 
-
         // awal UI
         orderPanel.SetActive(false);
-        rollButton.gameObject.SetActive(false);
         infoText.text = "Pilih jumlah pemain";
         orderStatusText.text = "";
     }
@@ -171,7 +167,6 @@ public class MultiplayerManager : MonoBehaviour
         drawIndex = 0;
 
         orderPanel.SetActive(true);
-        rollButton.gameObject.SetActive(false);
         UpdatePoolUI();
         UpdateOrderStatusUI();
 
@@ -237,7 +232,14 @@ public class MultiplayerManager : MonoBehaviour
         infoText.text = orderStr;
 
         orderPanel.SetActive(false);
-        rollButton.gameObject.SetActive(false);
+
+        // ---TAMBAHKAN BLOK INI ---
+        // Beri tahu UIManager untuk membuat daftar UI pemain
+        if (uiManager != null)
+        {
+            uiManager.SetupPlayerList(turnOrder);
+        }
+        // -------------------------
 
         // set current turn to first player
         currentTurnIdx = 0;
@@ -363,6 +365,14 @@ public class MultiplayerManager : MonoBehaviour
         {
             players[i].SetHighlight(players[i] == cur);
         }
+
+        // --- TAMBAHKAN BLOK INI ---
+        // Beri tahu UIManager siapa pemain yang aktif
+        if (uiManager != null)
+        {
+            uiManager.UpdateActivePlayer(currentTurnIdx);
+        }
+        // -------------------------
     }
 
     // -------------------------
