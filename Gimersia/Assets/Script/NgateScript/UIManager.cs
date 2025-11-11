@@ -1,14 +1,35 @@
 using UnityEngine;
 using UnityEngine.UI;
-using System.Collections.Generic;
+using System.Collections.Generic; // Mengambil dari kedua script
 using TMPro;
+using UnityEngine.SceneManagement; // Diambil dari kodemu
 
 public class UIManager : MonoBehaviour
 {
+    // --- FITUR SINGLETON DARI TEMANMU ---
     public static UIManager Instance;
 
     private enum DetailPanelContext { ViewingHand, ConfirmingChoice }
     private DetailPanelContext currentContext;
+
+    // --- FITUR PAUSE/SETTINGS DARI KODEMU ---
+    [Header("Pause/Settings Menu")]
+    [Tooltip("Panel utama gameplay (berisi daftar pemain, info giliran, tombol settings, dll.)")]
+    public GameObject gameplayPanel; // Panel "induk" untuk semua UI game
+
+    [Tooltip("Panel settings yang muncul saat di-pause")]
+    public GameObject settingsPanel;
+
+    [Tooltip("Nama scene Main Menu (pastikan ada di Build Settings!)")]
+    public string mainMenuSceneName = "MainMenu";
+    // ------------------------------------
+
+    // --- FITUR PLAYER TURN UI DARI KODEMU ---
+    [Header("Player Turn UI")]
+    public GameObject playerUIEntryPrefab;
+    public Transform playerUIContainer;
+    private List<PlayerUIEntry> uiEntries = new List<PlayerUIEntry>();
+    // ------------------------------------
 
     [Header("Panel Detail Kartu (Pop-up)")]
     public GameObject cardDetailPanel;
@@ -18,10 +39,8 @@ public class UIManager : MonoBehaviour
     public TextMeshProUGUI cardTypeText;
     public TextMeshProUGUI cardTargetText;
     public Image cardImage;
-    public Button closeDetailButton; // Tombol 'X'
-    [Tooltip("Tombol 'Gunakan Kartu' (saat melihat dari tangan)")]
+    public Button closeDetailButton;
     public Button useCardButton;
-    [Tooltip("Tombol 'Pilih Kartu Ini' (saat memilih dari 3 pilihan)")]
     public Button confirmChoiceButton;
 
     [Header("Card Choice Panel (Pilih 1 dari 3)")]
@@ -31,7 +50,8 @@ public class UIManager : MonoBehaviour
 
     [Header("UI Utama (Game)")]
     public TextMeshProUGUI cycleText;
-    public GameObject[] playerHighlightIndicators;
+    // DIHAPUS: playerHighlightIndicators diganti dengan sistem 'PlayerTurnUI' kodemu
+    // public GameObject[] playerHighlightIndicators; 
 
     [Header("Tampilan Tangan Pemain")]
     public GameObject cardDisplayPrefab;
@@ -44,50 +64,42 @@ public class UIManager : MonoBehaviour
 
     void Awake()
     {
+        // Logika Singleton dari temanmu
         if (Instance == null)
         {
-            // Jika belum ada instance, jadikan ini instance utama
             Instance = this;
-
-            // Opsional: Jika UIManager Anda ada di root,
-            // tambahkan ini agar tidak hancur saat pindah scene
-            // DontDestroyOnLoad(gameObject); 
+            // DontDestroyOnLoad(gameObject); // Opsional
         }
         else
         {
-            // --- INI PERLINDUNGAN DUPLIKAT ---
-            // Jika Instance SUDAH ADA, berarti ini duplikat.
             Debug.LogError($"--- ERROR DUPLIKAT UIMANAGER ---");
-            Debug.LogError($"Sebuah UIManager sudah ada di GameObject '{Instance.gameObject.name}'.");
-            Debug.LogError($"UIManager duplikat di '{this.gameObject.name}' akan dihancurkan.");
-            Destroy(gameObject); // Hancurkan duplikat ini
+            Destroy(gameObject);
         }
     }
 
     void Start()
     {
-        cardDetailPanel.SetActive(false);
-        cardChoicePanel.SetActive(false);
+        // --- LOGIKA START GABUNGAN ---
 
-        // --- PERBAIKAN BUG DI SINI ---
-        // 1. Menggunakan fungsi 'OnCloseDetailPressed' yang benar
-        closeDetailButton.onClick.AddListener(OnCloseDetailPressed);
+        // Dari kodemu (mengatur panel settings & gameplay)
+        if (settingsPanel != null) settingsPanel.SetActive(false);
+        if (gameplayPanel != null) gameplayPanel.SetActive(true);
+        Time.timeScale = 1f; // Pastikan game tidak ter-pause
 
-        if (useCardButton != null)
-        {
-            useCardButton.onClick.AddListener(OnUseCardPressed);
-        }
+        // Dari kode temanmu (mengatur panel kartu)
+        if (cardDetailPanel != null) cardDetailPanel.SetActive(false);
+        if (cardChoicePanel != null) cardChoicePanel.SetActive(false);
 
-        // 2. Menambahkan listener yang hilang untuk tombol 'Confirm'
-        if (confirmChoiceButton != null)
-        {
-            confirmChoiceButton.onClick.AddListener(OnConfirmCardChoicePressed);
-        }
-        // -------------------------
+        // Listener tombol kartu (dari temanmu)
+        if (closeDetailButton != null) closeDetailButton.onClick.AddListener(OnCloseDetailPressed);
+        if (useCardButton != null) useCardButton.onClick.AddListener(OnUseCardPressed);
+        if (confirmChoiceButton != null) confirmChoiceButton.onClick.AddListener(OnConfirmCardChoicePressed);
+
+        // (Tombol untuk settings/pause panel akan kamu hubungkan di Inspector)
     }
 
-    // --- LOGIKA TOMBOL PANEL DETAIL ---
-
+    // --- LOGIKA TOMBOL PANEL DETAIL (Dari Temanmu) ---
+    #region Card Detail Panel
     private void OnCloseDetailPressed()
     {
         cardDetailPanel.SetActive(false);
@@ -98,6 +110,7 @@ public class UIManager : MonoBehaviour
     {
         if (currentContext == DetailPanelContext.ViewingHand && currentlyShownCard != null)
         {
+            // Menggunakan Singleton (Instance) untuk memanggil Manager
             MultiplayerManager.Instance.UseCard(currentlyShownCard);
             cardDetailPanel.SetActive(false);
             currentlyShownCard = null;
@@ -106,7 +119,6 @@ public class UIManager : MonoBehaviour
 
     private void OnConfirmCardChoicePressed()
     {
-        // Debug.Log("Confirm Ditekan!"); // (Untuk debug)
         if (currentContext == DetailPanelContext.ConfirmingChoice && currentlyShownCard != null)
         {
             MultiplayerManager.Instance.AddChosenCardToPlayer(currentlyShownCard);
@@ -116,9 +128,10 @@ public class UIManager : MonoBehaviour
             currentlyShownCard = null;
         }
     }
+    #endregion
 
-    // --- FUNGSI TAMPILKAN PANEL DETAIL ---
-
+    // --- FUNGSI TAMPILKAN PANEL DETAIL (Dari Temanmu) ---
+    #region Show Card Details
     public void ShowHandCardDetails(CardData card)
     {
         currentContext = DetailPanelContext.ViewingHand;
@@ -126,6 +139,8 @@ public class UIManager : MonoBehaviour
         PopulateDetailPanel(card);
 
         confirmChoiceButton.gameObject.SetActive(false);
+
+        // Logika pengecekan giliran
         bool isMyTurn = (MultiplayerManager.Instance != null && MultiplayerManager.Instance.IsPlayerTurn(MultiplayerManager.Instance.GetCurrentPlayer()));
         useCardButton.gameObject.SetActive(isMyTurn && !MultiplayerManager.Instance.IsActionRunning);
 
@@ -154,10 +169,10 @@ public class UIManager : MonoBehaviour
         cardTargetText.text = card.cardTarget;
         cardImage.sprite = card.cardImage;
     }
+    #endregion
 
-
-    // --- FUNGSI PANEL PILIHAN (Pilih 1 dari 3) ---
-
+    // --- FUNGSI PANEL PILIHAN (Dari Temanmu) ---
+    #region Card Choice Panel
     public void StartCardSelection(List<CardData> cardsToShow)
     {
         ClearChoicePrefabs();
@@ -178,32 +193,22 @@ public class UIManager : MonoBehaviour
         }
         currentChoiceObjects.Clear();
     }
+    #endregion
 
-
-    // --- FUNGSI UI UTAMA & TANGAN ---
-
+    // --- FUNGSI UI UTAMA & TANGAN (Gabungan) ---
+    #region Main UI & Player Hand
     public void UpdateCycle(int count)
     {
-        // Pastikan tidak null
         if (cycleText != null)
             cycleText.text = "Cycle : " + count;
     }
 
-    public void UpdatePlayerTurnHighlight(int playerIndex)
-    {
-        for (int i = 0; i < playerHighlightIndicators.Length; i++)
-        {
-            if (playerHighlightIndicators[i] != null)
-            {
-                playerHighlightIndicators[i].SetActive(i == playerIndex);
-            }
-        }
-    }
+    // DIHAPUS: UpdatePlayerTurnHighlight (dari temanmu)
+    // Kita akan menggunakan 'UpdateActivePlayer' dari kodemu karena lebih canggih
 
-    // --- UPDATE LOGIKA TAS DI SINI ---
     public void DisplayPlayerHand(PlayerPawn player)
     {
-        // 1. Bersihkan kartu lama
+        // (Fungsi ini diambil dari temanmu, tidak berubah)
         foreach (GameObject cardObj in currentHandObjects)
         {
             Destroy(cardObj);
@@ -211,27 +216,17 @@ public class UIManager : MonoBehaviour
         currentHandObjects.Clear();
 
         if (player == null) return;
-
-        // --- INI PERLINDUNGAN BARU ---
-        // Cek apakah variabel Inspector-nya KOSONG
         if (cardDisplayPrefab == null)
         {
-            Debug.LogError($"--- ERROR UIMANAGER ---");
-            Debug.LogError($"Slot 'Card Display Prefab' (prefab 'CardMockup_Prefab') KOSONG.");
-            Debug.LogError($"Tolong isi di Inspector GameObject '{this.gameObject.name}'.");
-            return; // Hentikan fungsi di sini agar tidak crash
+            Debug.LogError($"--- ERROR UIMANAGER --- Slot 'Card Display Prefab' KOSONG.");
+            return;
         }
         if (handContainer == null)
         {
-            Debug.LogError($"--- ERROR UIMANAGER ---");
-            Debug.LogError($"Slot 'Hand Container' (tempat 'tas' kartu) KOSONG.");
-            Debug.LogError($"Tolong isi di Inspector GameObject '{this.gameObject.name}'.");
-            return; // Hentikan fungsi di sini agar tidak crash
+            Debug.LogError($"--- ERROR UIMANAGER --- Slot 'Hand Container' KOSONG.");
+            return;
         }
-        // -----------------------------
 
-        // 2. Tampilkan kartu baru (Tas pemain saat ini)
-        // Kode ini hanya akan berjalan jika kedua variabel di atas TERISI
         foreach (PlayerCardInstance cardInstance in player.heldCards)
         {
             GameObject newCard = Instantiate(cardDisplayPrefab, handContainer);
@@ -239,4 +234,89 @@ public class UIManager : MonoBehaviour
             currentHandObjects.Add(newCard);
         }
     }
+    #endregion
+
+    // --- FUNGSI-FUNGSI DARI KODEMU (Player Turn List & Settings) ---
+    #region Player Turn & Settings (From Your Code)
+
+    /// <summary>
+    /// Dipanggil oleh MultiplayerManager *SATU KALI* saat giliran ditentukan.
+    /// (Ini dari kodemu)
+    /// </summary>
+    public void SetupPlayerList(List<PlayerPawn> playerTurnOrder)
+    {
+        if (playerUIContainer == null || playerUIEntryPrefab == null)
+        {
+            Debug.LogWarning("Referensi Player Turn UI (Container/Prefab) kosong di UIManager.");
+            return;
+        }
+
+        foreach (Transform child in playerUIContainer)
+        {
+            Destroy(child.gameObject);
+        }
+        uiEntries.Clear();
+
+        foreach (PlayerPawn player in playerTurnOrder)
+        {
+            GameObject entryGO = Instantiate(playerUIEntryPrefab, playerUIContainer);
+            PlayerUIEntry entryScript = entryGO.GetComponent<PlayerUIEntry>();
+            if (entryScript != null)
+            {
+                entryScript.Setup(player.name);
+                uiEntries.Add(entryScript);
+            }
+        }
+    }
+
+    /// <summary>
+    /// Dipanggil oleh MultiplayerManager *SETIAP AWAL GILIRAN*.
+    /// (Ini dari kodemu, menggantikan 'UpdatePlayerTurnHighlight' temanmu)
+    /// </summary>
+    public void UpdateActivePlayer(int activeIndex)
+    {
+        for (int i = 0; i < uiEntries.Count; i++)
+        {
+            if (i == activeIndex)
+            {
+                uiEntries[i].SetActive(true); // Maju
+            }
+            else
+            {
+                uiEntries[i].SetActive(false); // Mundur
+            }
+        }
+    }
+
+    /// <summary>
+    /// Dipanggil oleh tombol Settings di UI Gameplay. (Dari kodemu)
+    /// </summary>
+    public void OnOpenSettings()
+    {
+        if (settingsPanel == null || gameplayPanel == null) return;
+        Time.timeScale = 0f; // Jeda
+        settingsPanel.SetActive(true);
+        gameplayPanel.SetActive(false);
+    }
+
+    /// <summary>
+    /// Dipanggil oleh tombol 'Resume' di dalam Settings Panel. (Dari kodemu)
+    /// </summary>
+    public void OnResumeGame()
+    {
+        if (settingsPanel == null || gameplayPanel == null) return;
+        Time.timeScale = 1f; // Lanjut
+        settingsPanel.SetActive(false);
+        gameplayPanel.SetActive(true);
+    }
+
+    /// <summary>
+    /// Dipanggil oleh tombol 'Return to Main Menu' di Settings Panel. (Dari kodemu)
+    /// </summary>
+    public void OnReturnToMainMenu()
+    {
+        Time.timeScale = 1f; // Selalu reset TimeScale!
+        SceneManager.LoadScene(mainMenuSceneName);
+    }
+    #endregion
 }
