@@ -1,15 +1,20 @@
 using UnityEngine;
-using TMPro; // Diambil dari kodemu
+using TMPro;
+using System.Linq;
+using System.Collections.Generic;
 
-// DIUBAH: Enum ini adalah gabungan dari kodemu dan kode temanmu
+// Enum (tidak berubah)
 public enum TileType
 {
-    Normal,      
-    SnakeStart,  
-    LadderStart, 
-    SnakeEnd,    // <-- Dari kodemu
-    LadderEnd,   // <-- Dari kodemu
-    BlessingCard // <-- BARU: Dari kode temanmu
+    Normal,
+    SnakeStart,
+    LadderStart,
+    SnakeEnd,
+    LadderEnd,
+    BlessingCard,
+    SnakePathStraight,
+    SnakePathBend1,
+    SnakePathBend2
 }
 
 public class Tiles : MonoBehaviour
@@ -19,12 +24,15 @@ public class Tiles : MonoBehaviour
     public TileType type = TileType.Normal;
 
     [Header("Visuals")]
-    public TextMeshPro tileNumberText; // <-- Dari kodemu
+    public TextMeshPro tileNumberText;
 
     [Header("Logika Ular/Tangga")]
     public Tiles targetTile;
 
-    // DIUBAH: Ini adalah sistem visual dari KODEMU
+
+    [Header("Visual Models (Wadah)")]
+    public Transform pathContainer;
+
     [Header("Visual Models (Child Objects)")]
     public GameObject normalModel;
     public GameObject snakeStartModel;
@@ -33,135 +41,242 @@ public class Tiles : MonoBehaviour
     [Header("Visual Models (Tujuan)")]
     public GameObject snakeEndModel;
     public GameObject ladderEndModel;
-    
-    // BARU: Tambahkan slot model untuk petak kartu
-    [Header("Visual Models (Spesial)")] 
-    public GameObject blessingCardModel; // <-- BARU
 
-    // Variabel OnValidate (dari kodemu)
+    [Header("Visual Models (Jalur Ular)")]
+    public GameObject snakePathStraightModel;
+    public GameObject snakePathBendModel1;
+    public GameObject snakePathBendModel2;
+
+    [Header("Visual Models (Spesial)")]
+    public GameObject blessingCardModel;
+
     [SerializeField, HideInInspector]
     private Tiles lastKnownTarget;
     [SerializeField, HideInInspector]
     private TileType lastKnownType;
+    [SerializeField, HideInInspector]
+    private int lastKnownTileID = -1;
 
+    // --- PERUBAHAN DI SINI ---
+    private Vector3 originalPosition; // Variabel baru untuk menyimpan posisi asli
+
+    void Awake() // <-- Gunakan Awake()
+    {
+        // Simpan posisi asli SEBELUM OnValidate/Start mengaturnya
+        originalPosition = transform.position;
+    }
+    // -------------------------
 
     void Start()
     {
-        // Dari kodemu
         UpdateVisualModel();
         UpdateTileNumber();
         lastKnownTarget = targetTile;
         lastKnownType = type;
+        lastKnownTileID = tileID;
     }
 
-    // Dari kodemu
     void OnValidate()
     {
-        // Logika auto-update target (dari kodemu)
+        // (Logika OnValidate... tidak berubah)
+        #region OnValidate Logic
+        if (transform.localRotation != Quaternion.identity)
+        {
+            transform.localRotation = Quaternion.identity;
+        }
+
+        if (tileID != lastKnownTileID && tileID > 0)
+        {
+            AutoAssignModels();
+            lastKnownTileID = tileID;
+        }
+
         if (type != lastKnownType || targetTile != lastKnownTarget)
         {
             if (lastKnownTarget != null && lastKnownTarget != targetTile)
             {
-                lastKnownTarget.SetType(TileType.Normal);
+                lastKnownTarget.SetType(TileType.Normal, true);
             }
             if (type == TileType.LadderStart && targetTile != null)
             {
-                targetTile.SetType(TileType.LadderEnd);
+                targetTile.SetType(TileType.LadderEnd, true);
             }
             else if (type == TileType.SnakeStart && targetTile != null)
             {
-                targetTile.SetType(TileType.SnakeEnd);
+                targetTile.SetType(TileType.SnakeEnd, true);
             }
-            if (type == TileType.Normal && targetTile != null)
+            if (type == TileType.Normal && lastKnownTarget != null)
             {
-                 targetTile.SetType(TileType.Normal);
+                if (lastKnownType == TileType.LadderStart || lastKnownType == TileType.SnakeStart)
+                    lastKnownTarget.SetType(TileType.Normal, true);
             }
             lastKnownTarget = targetTile;
             lastKnownType = type;
         }
         if ((type == TileType.LadderEnd || type == TileType.SnakeEnd))
         {
-            if (targetTile != null) 
-            {
-                Debug.LogWarning($"Tile 'End' ({name}) tidak seharusnya punya Target. Menghapus target...");
-                targetTile = null; 
-            }
+            if (targetTile != null) targetTile = null;
         }
-        
+
         UpdateVisualModel();
         UpdateTileNumber();
+        #endregion
     }
 
-    // Dari kodemu (dengan pembersihan debug)
+    public void SetType(TileType newType, bool fromScript = false)
+    {
+        // (Tidak berubah)
+        #region SetType Logic
+        type = newType;
+        UpdateVisualModel();
+        if (fromScript)
+        {
+            lastKnownType = type;
+        }
+        #endregion
+    }
+
+    
+    Vector2 RoundVectorToGrid(Vector2 v)
+    {
+        v.Normalize();
+        if (Mathf.Abs(v.x) > Mathf.Abs(v.y))
+        {
+            return new Vector2(Mathf.Sign(v.x), 0);
+        }
+        else
+        {
+            return new Vector2(0, Mathf.Sign(v.y));
+        }
+    }
+   
+    [ContextMenu("Auto-Assign Child Models")]
+    void AutoAssignModels()
+    {
+        if (tileID <= 0) return;
+        string theme = (tileID % 2 != 0) ? "Emas" : "Putih";
+
+        Transform textChild = transform.Find("Text (TMP)");
+        if (textChild != null)
+        {
+            tileNumberText = textChild.GetComponent<TextMeshPro>();
+        }
+
+        Transform containerChild = transform.Find("PathContainer");
+        if (containerChild != null)
+        {
+            pathContainer = containerChild;
+        }
+        else
+        {
+            Debug.LogError($"AutoAssign GAGAL: Tidak menemukan 'PathContainer' di {gameObject.name}. ", gameObject);
+            return;
+        }
+
+        normalModel = FindChildModel(transform, "Tile_" + theme);
+        snakeStartModel = FindChildModel(transform, "Tile_Snake");
+        ladderStartModel = FindChildModel(transform, "Tile_Tangga" + theme);
+        snakeEndModel = FindChildModel(transform, "Tile_Buntut" + theme);
+        ladderEndModel = FindChildModel(transform, "Tile_Tangga" + theme);
+        blessingCardModel = FindChildModel(transform, "Tile_" + theme + "Coak");
+
+        snakePathStraightModel = FindChildModel(pathContainer, "Tile_JalurBuntutLurus" + theme);
+        snakePathBendModel1 = FindChildModel(pathContainer, "Tile_JalurBuntutBelok" + theme + "_1");
+        snakePathBendModel2 = FindChildModel(pathContainer, "Tile_JalurBuntutBelok" + theme + "_2");
+    }
+
+    GameObject FindChildModel(Transform parentToSearch, string childName)
+    {
+        if (parentToSearch == null) return null;
+        Transform child = parentToSearch.Find(childName);
+        return (child != null) ? child.gameObject : null;
+    }
+
     void UpdateTileNumber()
     {
         if (tileNumberText != null)
         {
             tileNumberText.text = tileID.ToString();
         }
-        // else
-        // {
-        //     Debug.LogError($"GAGAL! Referensi 'tileNumberText' KOSONG di {gameObject.name}", gameObject);
-        // }
     }
 
-    // Dari kodemu
-    public void SetType(TileType newType)
-    {
-        type = newType;
-        UpdateVisualModel();
-    }
-
-
-    // DIUBAH: `UpdateVisualModel` dari kodemu, ditambah `BlessingCard`
     void UpdateVisualModel()
     {
-        // 1. Matikan SEMUA model
         if (normalModel != null) normalModel.SetActive(false);
         if (snakeStartModel != null) snakeStartModel.SetActive(false);
         if (ladderStartModel != null) ladderStartModel.SetActive(false);
         if (snakeEndModel != null) snakeEndModel.SetActive(false);
         if (ladderEndModel != null) ladderEndModel.SetActive(false);
-        if (blessingCardModel != null) blessingCardModel.SetActive(false); // <-- BARU
+        if (blessingCardModel != null) blessingCardModel.SetActive(false);
+        if (snakePathStraightModel != null) snakePathStraightModel.SetActive(false);
+        if (snakePathBendModel1 != null) snakePathBendModel1.SetActive(false);
+        if (snakePathBendModel2 != null) snakePathBendModel2.SetActive(false);
 
-        // 2. Aktifkan model yang sesuai
+        if (pathContainer != null)
+        {
+            bool isPath = (type == TileType.SnakePathStraight ||
+                           type == TileType.SnakePathBend1 ||
+                           type == TileType.SnakePathBend2);
+            if (isPath)
+            {
+                if (transform.localRotation != Quaternion.identity)
+                {
+                    pathContainer.localRotation = transform.localRotation;
+                    transform.localRotation = Quaternion.identity;
+                }
+            }
+            else
+            {
+                pathContainer.localRotation = Quaternion.identity;
+            }
+        }
+
         switch (type)
         {
             case TileType.Normal:
-                if (normalModel != null)
-                    normalModel.SetActive(true);
+                if (normalModel != null) normalModel.SetActive(true);
                 break;
             case TileType.SnakeStart:
-                if (snakeStartModel != null)
-                    snakeStartModel.SetActive(true);
+                if (snakeStartModel != null) snakeStartModel.SetActive(true);
                 break;
             case TileType.LadderStart:
-                if (ladderStartModel != null)
-                    ladderStartModel.SetActive(true);
+                if (ladderStartModel != null) ladderStartModel.SetActive(true);
                 break;
             case TileType.SnakeEnd:
-                if (snakeEndModel != null)
-                    snakeEndModel.SetActive(true);
+                if (snakeEndModel != null) snakeEndModel.SetActive(true);
                 break;
             case TileType.LadderEnd:
-                if (ladderEndModel != null)
-                    ladderEndModel.SetActive(true);
+                if (ladderEndModel != null) ladderEndModel.SetActive(true);
                 break;
-            // BARU: Tambahkan case untuk kartu
-            case TileType.BlessingCard: 
-                if (blessingCardModel != null)
-                    blessingCardModel.SetActive(true);
+            case TileType.BlessingCard:
+                if (blessingCardModel != null) blessingCardModel.SetActive(true);
+                break;
+            case TileType.SnakePathStraight:
+                if (snakePathStraightModel != null) snakePathStraightModel.SetActive(true);
+                break;
+            case TileType.SnakePathBend1:
+                if (snakePathBendModel1 != null) snakePathBendModel1.SetActive(true);
+                break;
+            case TileType.SnakePathBend2:
+                if (snakePathBendModel2 != null) snakePathBendModel2.SetActive(true);
                 break;
         }
     }
+    
 
-    // Dari kodemu
+    // --- PERUBAHAN DI SINI ---
+    /// <summary>
+    /// Memberikan posisi di mana pemain harus berdiri di atas tile ini.
+    /// (DIUBAH: Sekarang menggunakan originalPosition)
+    /// </summary>
     public Vector3 GetPlayerPosition()
     {
-        return transform.position + Vector3.up * 0.5f;
+        // Menggunakan 'originalPosition' AGAR STABIL
+        // dan tidak terpengaruh animasi turun
+        return originalPosition + Vector3.up * 0.5f;
     }
+    // -------------------------
 
-    // Dari kodemu
     #region Gizmos
     void OnDrawGizmos()
     {

@@ -14,7 +14,11 @@ public enum CardEffectType
     ThorHammer,      // Memundurkan pemain didepanmu 2 tile
     LokiTricks,      // Menukar posisi mu dengan pemain target
     RaLight,         // Maju 2 blok ke depan
-    AnubisJudgment           // Memilih 1 pemain untuk di
+    AnubisJudgment,   // Memilih 1 pemain untuk di hilangkan turn nya satu kali
+    IsisProtection,    // Blok efek negatif selama 2 giliran
+    AmaterasuRadiance,   // Dapat turn ekstra setelah menggunakan tangga
+    SusanooStorm, // semua pemain didepan mu dimundurkan 1 tile
+    InariFortune  // Turn selanjutnya +1 langkah dan draw 1 kartu baru
 }
 
 // Ini memungkinkan Anda membuat "aset" kartu baru dari menu Create di Unity

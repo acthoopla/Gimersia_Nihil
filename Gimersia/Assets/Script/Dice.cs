@@ -88,6 +88,11 @@ public class Dice : MonoBehaviour
         if (manager != null && manager.IsActionRunning) return;
         if (rb.IsSleeping() || rb.velocity.magnitude < 0.1f)
         {
+            if (manager != null)
+            {
+                manager.HidePlayerCardHand();
+            }
+
             isDragging = true;
             rb.isKinematic = true;
             rb.useGravity = false;

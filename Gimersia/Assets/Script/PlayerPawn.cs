@@ -34,6 +34,10 @@ public class PlayerPawn : MonoBehaviour
     public int extraDiceRolls = 0;
     public bool hasAresProvocation = false;
     public int skipTurns = 0;
+    public int immuneToAllNegativeTurns = 0;
+    public bool hasAmaterasuRadiance = false;
+    public bool getsExtraTurn = false;
+    public bool drawCardNextTurn = false;
     // -------------------------------------
 
     [HideInInspector]
