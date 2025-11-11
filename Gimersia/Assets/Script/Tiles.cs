@@ -29,7 +29,6 @@ public class Tiles : MonoBehaviour
     [Header("Logika Ular/Tangga")]
     public Tiles targetTile;
 
-
     [Header("Visual Models (Wadah)")]
     public Transform pathContainer;
 
@@ -57,15 +56,12 @@ public class Tiles : MonoBehaviour
     [SerializeField, HideInInspector]
     private int lastKnownTileID = -1;
 
-    // --- PERUBAHAN DI SINI ---
-    private Vector3 originalPosition; // Variabel baru untuk menyimpan posisi asli
+    private Vector3 originalPosition;
 
-    void Awake() // <-- Gunakan Awake()
+    void Awake()
     {
-        // Simpan posisi asli SEBELUM OnValidate/Start mengaturnya
         originalPosition = transform.position;
     }
-    // -------------------------
 
     void Start()
     {
@@ -78,7 +74,6 @@ public class Tiles : MonoBehaviour
 
     void OnValidate()
     {
-        // (Logika OnValidate... tidak berubah)
         #region OnValidate Logic
         if (transform.localRotation != Quaternion.identity)
         {
@@ -125,31 +120,14 @@ public class Tiles : MonoBehaviour
 
     public void SetType(TileType newType, bool fromScript = false)
     {
-        // (Tidak berubah)
-        #region SetType Logic
         type = newType;
         UpdateVisualModel();
         if (fromScript)
         {
             lastKnownType = type;
         }
-        #endregion
     }
 
-    
-    Vector2 RoundVectorToGrid(Vector2 v)
-    {
-        v.Normalize();
-        if (Mathf.Abs(v.x) > Mathf.Abs(v.y))
-        {
-            return new Vector2(Mathf.Sign(v.x), 0);
-        }
-        else
-        {
-            return new Vector2(0, Mathf.Sign(v.y));
-        }
-    }
-   
     [ContextMenu("Auto-Assign Child Models")]
     void AutoAssignModels()
     {
@@ -178,7 +156,10 @@ public class Tiles : MonoBehaviour
         ladderStartModel = FindChildModel(transform, "Tile_Tangga" + theme);
         snakeEndModel = FindChildModel(transform, "Tile_Buntut" + theme);
         ladderEndModel = FindChildModel(transform, "Tile_Tangga" + theme);
+        
+        // --- INI PERBAIKANNYA ---
         blessingCardModel = FindChildModel(transform, "Tile_" + theme + "Plate");
+        // ------------------------
 
         snakePathStraightModel = FindChildModel(pathContainer, "Tile_JalurBuntutLurus" + theme);
         snakePathBendModel1 = FindChildModel(pathContainer, "Tile_JalurBuntutBelok" + theme + "_1");
@@ -262,20 +243,11 @@ public class Tiles : MonoBehaviour
                 break;
         }
     }
-    
 
-    // --- PERUBAHAN DI SINI ---
-    /// <summary>
-    /// Memberikan posisi di mana pemain harus berdiri di atas tile ini.
-    /// (DIUBAH: Sekarang menggunakan originalPosition)
-    /// </summary>
     public Vector3 GetPlayerPosition()
     {
-        // Menggunakan 'originalPosition' AGAR STABIL
-        // dan tidak terpengaruh animasi turun
         return originalPosition + Vector3.up * 0.5f;
     }
-    // -------------------------
 
     #region Gizmos
     void OnDrawGizmos()

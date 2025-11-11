@@ -1,44 +1,41 @@
 using UnityEngine;
 using UnityEngine.UI;
-using System.Collections.Generic; // Mengambil dari kedua script
+using System.Collections.Generic;
 using TMPro;
-using UnityEngine.SceneManagement; // Diambil dari kodemu
-using System.Text; // <-- BARU: Untuk membangun string pemenang
+using UnityEngine.SceneManagement;
+using System.Text; // Diambil dari kodemu
 
 public class UIManager : MonoBehaviour
 {
-    public static UIManager Instance;
+    public static UIManager Instance; // Diambil dari temanmu
 
     private enum DetailPanelContext { ViewingHand, ConfirmingChoice }
     private DetailPanelContext currentContext;
 
+    // Dari kodemu
     [Header("Pause/Settings Menu")]
     public GameObject gameplayPanel;
     public GameObject settingsPanel;
     public string mainMenuSceneName = "MainMenu";
 
+    // Dari kodemu
     [Header("Player Turn UI")]
     public GameObject playerUIEntryPrefab;
     public Transform playerUIContainer;
     private List<PlayerUIEntry> uiEntries = new List<PlayerUIEntry>();
 
-    // --- TAMBAHAN BARU DI SINI ---
+    // Dari kodemu
     [Header("Game Over UI")]
-    [Tooltip("Panel yang muncul saat game selesai")]
     public GameObject gameOverPanel;
-    [Tooltip("Teks untuk menampilkan daftar pemenang")]
     public TextMeshProUGUI winnerListText;
-    [Tooltip("Tombol untuk 'Play Again' di panel Game Over")]
     public Button playAgainButton;
-    [Tooltip("Tombol 'Return to Menu' di panel Game Over")]
     public Button returnToMenuButton_GameOver;
-    // ------------------------------------
 
+    // Dari temanmu
     [Header("Panel Detail Kartu (Pop-up)")]
     public GameObject cardDetailPanel;
     public GameObject cardInfoObject;
     public TextMeshProUGUI cardNameText;
-    // ... (sisa variabel Card Detail-mu) ...
     public TextMeshProUGUI cardDescriptionText;
     public TextMeshProUGUI cardTypeText;
     public TextMeshProUGUI cardTargetText;
@@ -47,25 +44,28 @@ public class UIManager : MonoBehaviour
     public Button useCardButton;
     public Button confirmChoiceButton;
 
+    // Dari temanmu
     [Header("Card Choice Panel (Pilih 1 dari 3)")]
     public GameObject cardChoicePanel;
     public GameObject cardChoicePrefab;
     public Transform choiceContainer;
 
     [Header("UI Utama (Game)")]
-    public TextMeshProUGUI cycleText;
+    public TextMeshProUGUI cycleText; // Dari temanmu
 
+    // Dari temanmu
     [Header("Tampilan Tangan Pemain")]
     public GameObject cardDisplayPrefab;
     public Transform handContainer;
 
-    // Variabel privat
+    // Variabel privat gabungan
     private List<GameObject> currentHandObjects = new List<GameObject>();
     private List<GameObject> currentChoiceObjects = new List<GameObject>();
     private CardData currentlyShownCard;
 
     void Awake()
     {
+        // Logika Singleton (dari temanmu)
         if (Instance == null)
             Instance = this;
         else
@@ -75,32 +75,24 @@ public class UIManager : MonoBehaviour
     void Start()
     {
         // --- LOGIKA START GABUNGAN ---
-
-        // Dari kodemu (mengatur panel settings & gameplay)
         if (settingsPanel != null) settingsPanel.SetActive(false);
         if (gameplayPanel != null) gameplayPanel.SetActive(true);
         Time.timeScale = 1f;
-
-        // Dari kode temanmu (mengatur panel kartu)
         if (cardDetailPanel != null) cardDetailPanel.SetActive(false);
         if (cardChoicePanel != null) cardChoicePanel.SetActive(false);
-
-        // --- BARU: Matikan panel Game Over di awal ---
         if (gameOverPanel != null) gameOverPanel.SetActive(false);
-        // ------------------------------------------
-
-        // Listener tombol kartu (dari temanmu)
+        
+        // Listener tombol kartu
         if (closeDetailButton != null) closeDetailButton.onClick.AddListener(OnCloseDetailPressed);
         if (useCardButton != null) useCardButton.onClick.AddListener(OnUseCardPressed);
         if (confirmChoiceButton != null) confirmChoiceButton.onClick.AddListener(OnConfirmCardChoicePressed);
 
-        // --- BARU: Listener untuk tombol Game Over ---
+        // Listener tombol Game Over
         if (playAgainButton != null) playAgainButton.onClick.AddListener(OnPlayAgainPressed);
         if (returnToMenuButton_GameOver != null) returnToMenuButton_GameOver.onClick.AddListener(OnReturnToMainMenu);
-        // ------------------------------------------
     }
 
-    // (Semua fungsi logika kartu tidak berubah)
+    // --- SEMUA FUNGSI KARTU DARI TEMANMU DI AMBIL ---
     #region Card Logic Functions
     private void OnCloseDetailPressed()
     {
@@ -127,6 +119,12 @@ public class UIManager : MonoBehaviour
             cardChoicePanel.SetActive(false);
             ClearChoicePrefabs();
             currentlyShownCard = null;
+            
+            // Perbaikan dari temanmu: Tampilkan lagi 'hand'
+            if (handContainer != null)
+            {
+                handContainer.gameObject.SetActive(true);
+            }
         }
     }
 
@@ -172,6 +170,12 @@ public class UIManager : MonoBehaviour
             currentChoiceObjects.Add(choiceGO);
         }
         cardChoicePanel.SetActive(true);
+
+        // Perbaikan dari temanmu: Sembunyikan 'hand'
+        if (handContainer != null)
+        {
+            handContainer.gameObject.SetActive(false);
+        }
     }
 
     private void ClearChoicePrefabs()
@@ -191,6 +195,12 @@ public class UIManager : MonoBehaviour
 
     public void DisplayPlayerHand(PlayerPawn player)
     {
+        // Perbaikan dari temanmu: Tampilkan 'hand'
+        if (handContainer != null)
+        {
+            handContainer.gameObject.SetActive(true);
+        }
+        
         foreach (GameObject cardObj in currentHandObjects)
         {
             Destroy(cardObj);
@@ -206,11 +216,24 @@ public class UIManager : MonoBehaviour
             currentHandObjects.Add(newCard);
         }
     }
+    
+    // BARU: Fungsi dari temanmu
+    public void HidePlayerHand()
+    {
+        foreach (GameObject cardObj in currentHandObjects)
+        {
+            Destroy(cardObj);
+        }
+        currentHandObjects.Clear();
+        if (currentContext == DetailPanelContext.ViewingHand)
+        {
+            OnCloseDetailPressed();
+        }
+    }
     #endregion
 
-    // (Fungsi-fungsi Turn List & Settings dari kodemu tidak berubah)
-    #region Player Turn & Settings (From Your Code)
-
+    // --- SEMUA FUNGSI KODEMU (Turn List, Settings, Game Over) DIAMBIL ---
+    #region Player Turn & Game Flow (From Your Code)
     public void SetupPlayerList(List<PlayerPawn> playerTurnOrder)
     {
         if (playerUIContainer == null || playerUIEntryPrefab == null)
@@ -279,54 +302,33 @@ public class UIManager : MonoBehaviour
             uiEntries[playerIndex].SetAsWinner();
         }
     }
-    #endregion
-
-    // --- FUNGSI BARU UNTUK GAME OVER ---
-
-    /// <summary>
-    /// BARU: Dipanggil oleh Manager saat game selesai
-    /// </summary>
+    
     public void ShowGameOver(List<PlayerPawn> winners, PlayerPawn loser)
     {
-        // 1. Sembunyikan UI Gameplay
         if (gameplayPanel != null) gameplayPanel.SetActive(false);
-
-        // 2. Tampilkan Panel Game Over
         if (gameOverPanel != null) gameOverPanel.SetActive(true);
 
-        // 3. Buat teks peringkat
         if (winnerListText != null)
         {
             StringBuilder sb = new StringBuilder();
-            sb.AppendLine("<b><size=120%>PERINGKAT</size></b>"); // Judul
-            sb.AppendLine(); // Spasi
-
-            // Tampilkan semua pemenang
+            sb.AppendLine("<b><size=120%>PERINGKAT</size></b>");
+            sb.AppendLine(); 
             for (int i = 0; i < winners.Count; i++)
             {
                 sb.AppendLine($"<color=green>#{i + 1}: {winners[i].name}</color>");
             }
-
-            // Tampilkan yang kalah
             if (loser != null)
             {
                 sb.AppendLine($"<color=red>Kalah: {loser.name}</color>");
             }
-
             winnerListText.text = sb.ToString();
         }
     }
 
-    /// <summary>
-    /// BARU: Dipanggil oleh tombol 'Play Again'
-    /// </summary>
     public void OnPlayAgainPressed()
     {
-        // Pastikan game tidak nge-freeze
         Time.timeScale = 1f;
-
-        // Reload scene saat ini
         SceneManager.LoadScene(SceneManager.GetActiveScene().name);
     }
-    // ---------------------------------
+    #endregion
 }

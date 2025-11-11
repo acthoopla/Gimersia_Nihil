@@ -10,12 +10,13 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: ba7d9a9ee5f1fe44fa9447a1256379da, type: 3}
-  m_Name: Susanoo storm
+  m_Name: PoisedonWaves
   m_EditorClassIdentifier: 
-  cardName: Susanoo storm
-  description: semua pemain didepan mu dimundurkan 1 tile
-  cardImage: {fileID: 21300000, guid: b483bc0fd2fb45b44840d4c591af7e88, type: 3}
-  cardType: Debuff
-  cardTarget: Enemy
-  effectType: 14
-  intValue: 1
+  cardName: 
+  description: Mendorong seluruh bidak yang berada di row yang dipilih sejauh dua
+    blok, bisa dipilih maju atau mundur
+  cardImage: {fileID: 0}
+  cardType: Double Edge
+  cardTarget: Enemies, Self, Row
+  effectType: 4
+  intValue: 2

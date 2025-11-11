@@ -12826,14 +12826,21 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   allBlessingCards:
+  - {fileID: 11400000, guid: 116f812d4ced3aa46b9d370fd1779af7, type: 2}
+  - {fileID: 11400000, guid: 82b55172deee64f4988cabbb8218c404, type: 2}
+  - {fileID: 11400000, guid: cf25a280cd96ea04ea740b40d463471f, type: 2}
   - {fileID: 11400000, guid: 68ed983ac463960429b7108452457b8b, type: 2}
   - {fileID: 11400000, guid: 07755f5c70c13594c9bbeb279569869e, type: 2}
+  - {fileID: 11400000, guid: a9d782ce5cd18374fb79776eeab1ed18, type: 2}
+  - {fileID: 11400000, guid: f6d73e42bd8be08498b97f4802810f0d, type: 2}
+  - {fileID: 11400000, guid: 9ccfa7437b2d1f2429ba0731d4ba7186, type: 2}
+  - {fileID: 11400000, guid: 458627df431b0dc4d8ed90543d933fe0, type: 2}
+  - {fileID: 11400000, guid: c1d94007f8d1cb048a7adeba8dd819ff, type: 2}
   - {fileID: 11400000, guid: b77f9f2753e7c10449c3dd6459ad3bd9, type: 2}
   - {fileID: 11400000, guid: e73f1fc6c7dfcf5459c42a7e903f84e6, type: 2}
-  - {fileID: 11400000, guid: 62a97ea0a4ecaea4dae7a35978a009f5, type: 2}
-  - {fileID: 11400000, guid: 82b55172deee64f4988cabbb8218c404, type: 2}
-  - {fileID: 11400000, guid: 458627df431b0dc4d8ed90543d933fe0, type: 2}
+  - {fileID: 11400000, guid: 19d1f18837b7efc4291d7772f40001d8, type: 2}
   - {fileID: 11400000, guid: 72f095436c9f9f44da567fb26e605a4d, type: 2}
+  - {fileID: 11400000, guid: 62a97ea0a4ecaea4dae7a35978a009f5, type: 2}
 --- !u!4 &807892784
 Transform:
   m_ObjectHideFlags: 0
@@ -26230,7 +26237,7 @@ MonoBehaviour:
     m_Top: 0
     m_Bottom: 0
   m_ChildAlignment: 4
-  m_Spacing: -1000
+  m_Spacing: -400
   m_ChildForceExpandWidth: 1
   m_ChildForceExpandHeight: 1
   m_ChildControlWidth: 0

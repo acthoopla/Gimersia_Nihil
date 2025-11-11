@@ -1,5 +1,5 @@
 using System.Collections;
-using System.Collections.Generic; // <-- Pastikan ini ada
+using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.UI;
 using TMPro;
@@ -23,16 +23,24 @@ public class PlayerPawn : MonoBehaviour
     public float stepDelay = 0.08f;
     public float rotationSpeed = 360f;
 
+    // --- VARIABEL KARTU GABUNGAN ---
     [Header("Card System Data")]
     public List<PlayerCardInstance> heldCards = new List<PlayerCardInstance>();
 
     [Header("Card Status Effects")]
+    // Dari kodemu
     public int immuneToReverseCycles = 0;
     public int immuneToSnakeUses = 0;
     public int nextRollModifier = 0;
     public int extraDiceRolls = 0;
     public bool hasAresProvocation = false;
     public int skipTurns = 0;
+    // BARU: Dari temanmu
+    public int immuneToAllNegativeTurns = 0;
+    public bool hasAmaterasuRadiance = false;
+    public bool getsExtraTurn = false;
+    public bool drawCardNextTurn = false;
+    // ---------------------------------
 
     [HideInInspector]
     public bool wasReversedThisCycle = false;
@@ -61,6 +69,7 @@ public class PlayerPawn : MonoBehaviour
         }
     }
 
+    // Menggunakan OnMouseDown dari kodemu (lebih efisien)
     void OnMouseDown()
     {
         if (manager != null)
@@ -83,11 +92,11 @@ public class PlayerPawn : MonoBehaviour
 
     public void SetHighlight(bool on)
     {
-        float factor = on ? 1.15f : 1.0f;
+        float factor = on ? 1.15f : 1.0f; // Dari kodemu
         transform.localScale = baseScale * factor;
     }
 
-    // --- FUNGSI INI DIUBAH SECARA SIGNIFIKAN ---
+    // Menggunakan MoveToTile dari KODEMU (dengan rotasi sebelum pindah)
     public IEnumerator MoveToTile(int targetTileID, System.Func<int, Vector3> tilePosProvider)
     {
         int start = currentTileID;
@@ -98,47 +107,13 @@ public class PlayerPawn : MonoBehaviour
             // Gerak Maju
             for (int i = start + 1; i <= targetTileID; i++)
             {
-                // --- PERBAIKAN ROTASI (PINDAH KE ATAS) ---
-                int currentRow = (currentTileID - 1) / 10; // Baris kita sekarang (misal: 0)
-                int nextRow = (i - 1) / 10;            // Baris tile tujuan (misal: 1)
-
-                if (nextRow != currentRow) // Cek jika kita AKAN pindah baris
-                {
-                    // Kita ada di 'currentTileID' (misal 10), mau pindah ke 'i' (misal 11)
-                    float targetYAngle = (nextRow % 2 == 0) ? 0f : 180f; // Tentukan rotasi baris baru
-                    yield return StartCoroutine(SmoothRotate(targetYAngle)); // Putar badan dulu
-                }
-                // ------------------------------------------
-
-                Vector3 targetPos = tilePosProvider(i);
-                while (Vector3.Distance(transform.position, targetPos) > 0.01f)
-                {
-                    transform.position = Vector3.MoveTowards(transform.position, targetPos, stepSpeed * Time.deltaTime);
-                    yield return null;
-                }
-                transform.position = targetPos;
-                currentTileID = i; // Update ID SETELAH sampai
-
-                // (Logika rotasi yang lama di sini DIHAPUS)
-
-                yield return new WaitForSeconds(stepDelay);
-            }
-        }
-        else
-        {
-            // Gerak Mundur (Bounce Back)
-            for (int i = start - 1; i >= targetTileID; i--)
-            {
-                // --- PERBAIKAN ROTASI (PINDAH KE ATAS) ---
                 int currentRow = (currentTileID - 1) / 10;
                 int nextRow = (i - 1) / 10;
-
-                if (nextRow != currentRow) // Cek jika pindah baris
+                if (nextRow != currentRow)
                 {
                     float targetYAngle = (nextRow % 2 == 0) ? 0f : 180f;
-                    yield return StartCoroutine(SmoothRotate(targetYAngle)); // Putar badan dulu
+                    yield return StartCoroutine(SmoothRotate(targetYAngle));
                 }
-                // ------------------------------------------
 
                 Vector3 targetPos = tilePosProvider(i);
                 while (Vector3.Distance(transform.position, targetPos) > 0.01f)
@@ -148,35 +123,50 @@ public class PlayerPawn : MonoBehaviour
                 }
                 transform.position = targetPos;
                 currentTileID = i;
+                yield return new WaitForSeconds(stepDelay);
+            }
+        }
+        else
+        {
+            // Gerak Mundur
+            for (int i = start - 1; i >= targetTileID; i--)
+            {
+                int currentRow = (currentTileID - 1) / 10;
+                int nextRow = (i - 1) / 10;
+                if (nextRow != currentRow)
+                {
+                    float targetYAngle = (nextRow % 2 == 0) ? 0f : 180f;
+                    yield return StartCoroutine(SmoothRotate(targetYAngle));
+                }
 
+                Vector3 targetPos = tilePosProvider(i);
+                while (Vector3.Distance(transform.position, targetPos) > 0.01f)
+                {
+                    transform.position = Vector3.MoveTowards(transform.position, targetPos, stepSpeed * Time.deltaTime);
+                    yield return null;
+                }
+                transform.position = targetPos;
+                currentTileID = i;
                 yield return new WaitForSeconds(stepDelay);
             }
         }
     }
 
-    // Teleport (dipakai Ular & Kartu)
+    // Menggunakan overload TeleportToTile dari KODEMU (untuk tangga)
     public IEnumerator TeleportToTile(int targetTileID, System.Func<int, Vector3> tilePosProvider)
     {
         Vector3 targetPos = tilePosProvider(targetTileID);
         yield return StartCoroutine(TeleportToPosition(targetTileID, targetPos));
     }
 
-    // --- FUNGSI BARU UNTUK TANGGA ---
-    /// <summary>
-    /// Teleportasi yang menerima Vector3 (dipakai Tangga)
-    /// </summary>
     public IEnumerator TeleportToTile(int targetTileID, Vector3 targetPos)
     {
         yield return StartCoroutine(TeleportToPosition(targetTileID, targetPos));
     }
-    // --------------------------------
-
-    /// <summary>
-    /// Logika inti teleportasi
-    /// </summary>
+    
     private IEnumerator TeleportToPosition(int targetTileID, Vector3 targetPos)
     {
-        float speed = stepSpeed * 2.0f; // Gerak cepat
+        float speed = stepSpeed * 2.0f;
         while (Vector3.Distance(transform.position, targetPos) > 0.01f)
         {
             transform.position = Vector3.MoveTowards(transform.position, targetPos, speed * Time.deltaTime);
@@ -185,16 +175,14 @@ public class PlayerPawn : MonoBehaviour
         transform.position = targetPos;
         currentTileID = targetTileID;
 
-        // Snap rotasi instan setelah teleport
+        // Snap rotasi (dari kodemu)
         int row = (currentTileID - 1) / 10;
         float targetYAngle = (row % 2 == 0) ? 0f : 180f;
         transform.rotation = Quaternion.Euler(0, targetYAngle, 0);
     }
-    // --------------------------------
-
-
-    // (Fungsi SmoothRotate, MoveToPosition, NudgeToPosition tidak berubah)
+    
     #region Helper Coroutines
+    // Semua helper dari KODEMU (SmoothRotate, MoveToPosition)
     IEnumerator SmoothRotate(float targetYAngle)
     {
         Quaternion targetRotation = Quaternion.Euler(0, targetYAngle, 0);
@@ -205,7 +193,7 @@ public class PlayerPawn : MonoBehaviour
         }
         Quaternion startRotation = transform.rotation;
         float duration = Quaternion.Angle(startRotation, targetRotation) / rotationSpeed;
-        if (duration <= 0) duration = 0.1f; // Pengaman
+        if (duration <= 0) duration = 0.1f;
         float t = 0f;
         while (t < 1.0f)
         {
