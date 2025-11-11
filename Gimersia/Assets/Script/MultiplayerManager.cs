@@ -501,34 +501,37 @@ public class MultiplayerManager : MonoBehaviour
     // --- FUNGSI INI DIUBAH TOTAL (LOGIKA MENANG) ---
     void AdvanceTurn()
     {
-        // 1. Cek dulu apakah game sudah berakhir (REQUEST #3)
-        // Jumlah pemain aktif = Total Pemain - Jumlah Pemenang
+        // 1. Cek dulu apakah game sudah berakhir
         int activePlayerCount = turnOrder.Count - winners.Count;
 
         if (activePlayerCount <= 1)
         {
             isActionRunning = true; // Kunci game
+            if (physicalDice != null) physicalDice.gameObject.SetActive(false); // Matikan dadu
+
+            // Temukan 1 pemain yang kalah (jika ada)
+            PlayerPawn loser = turnOrder.FirstOrDefault(p => !winners.Contains(p));
+
             if (infoText != null)
             {
-                if (activePlayerCount == 1)
-                {
-                    // Temukan 1 pemain yang kalah
-                    PlayerPawn loser = turnOrder.FirstOrDefault(p => !winners.Contains(p));
-                    if (loser != null)
-                        infoText.text = $"Game Selesai! {loser.name} adalah yang terakhir!";
-                    else
-                        infoText.text = "Game Selesai! Seri!";
-                }
-                else // activePlayerCount == 0 (jika semua menang)
-                {
-                    infoText.text = "Game Selesai! Semua pemain telah menang!";
-                }
+                if (loser != null)
+                    infoText.text = $"Game Selesai! {loser.name} adalah yang terakhir!";
+                else
+                    infoText.text = "Game Selesai! Seri!";
             }
-            if (physicalDice != null) physicalDice.gameObject.SetActive(false); // Matikan dadu
-            return; // Jangan ganti giliran lagi
+
+            // --- PANGGILAN BARU KE UI MANAGER ---
+            if (uiManager != null)
+            {
+                // Kirim daftar pemenang dan yang kalah ke UIManager
+                uiManager.ShowGameOver(winners, loser);
+            }
+            // ------------------------------------
+
+            return; // Hentikan game
         }
 
-        // 2. Jika game belum selesai, cari pemain berikutnya (REQUEST #2)
+        // 2. Jika game belum selesai, cari pemain berikutnya
         PlayerPawn nextPlayer;
         do
         {
@@ -537,7 +540,7 @@ public class MultiplayerManager : MonoBehaviour
         }
         while (winners.Contains(nextPlayer)); // Ulangi jika pemain ini sudah menang
 
-        // --- Logika Cycle & Skip Turn (dari temanmu) ---
+        // 3. Logika Cycle & Skip Turn
         if (currentTurnIdx == 0)
         {
             currentCycle++;
@@ -546,7 +549,7 @@ public class MultiplayerManager : MonoBehaviour
 
             foreach (var p in players)
             {
-                if (winners.Contains(p)) continue; // Jangan proses pemenang
+                if (winners.Contains(p)) continue;
 
                 p.wasReversedThisCycle = false;
                 p.ShowReversedBadge(false);
@@ -561,10 +564,9 @@ public class MultiplayerManager : MonoBehaviour
         {
             if (infoText != null) infoText.text = $"{nextPlayer.name} skip giliran karena efek Anubis!";
             nextPlayer.skipTurns--;
-            AdvanceTurn(); // Panggil lagi untuk cari pemain berikutnya
+            AdvanceTurn();
             return;
         }
-        // ---------------------------------------------
 
         isActionRunning = false;
         HighlightCurrentPlayer();
