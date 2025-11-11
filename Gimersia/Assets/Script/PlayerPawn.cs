@@ -1,6 +1,7 @@
 using System.Collections;
-using UnityEngine;
+using System.Collections.Generic;
 using TMPro;
+using UnityEngine;
 
 /// <summary>
 /// PlayerPawn.cs (versi final, kompatibel dengan MultiplayerManager.cs)
@@ -29,6 +30,17 @@ public class PlayerPawn : MonoBehaviour
     public float stepSpeed = 5f;          // kecepatan movement
     public float stepDelay = 0.08f;       // jeda antar step per tile
 
+    [Header("Card System Data")]
+    public List<PlayerCardInstance> heldCards = new List<PlayerCardInstance>();
+
+    [Header("Card Status Effects")]
+    public int immuneToReverseCycles = 0;  // Untuk Athena Blessing
+    public int immuneToSnakeUses = 0;      // Untuk Shield of Athena
+    public int nextRollModifier = 0;       // Untuk Hermes Favors
+    public int extraDiceRolls = 0;         // Untuk Odin Wisdom
+    public bool hasAresProvocation = false; // Untuk Ares Provocation
+    public int skipTurns = 0;              // Untuk Anubis Judgment
+                                           
     // internal
     private Vector3 baseScale;
 

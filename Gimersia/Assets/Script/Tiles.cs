@@ -5,7 +5,8 @@ public enum TileType
 {
     Normal,      // Petak biasa
     SnakeStart,  // Petak tempat MULUT Ular (yang bikin turun)
-    LadderStart  // Petak tempat BAWAH Tangga (yang bikin naik)
+    LadderStart,  // Petak tempat BAWAH Tangga (yang bikin naik)
+    BlessingCard // Kartu berkah
 }
 
 // BARU: Atribut ini memastikan script ini harus punya Renderer (MeshRenderer)
