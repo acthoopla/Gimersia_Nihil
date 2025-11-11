@@ -1,56 +1,44 @@
 using UnityEngine;
-using TMPro;
+using TMPro; // Diambil dari kodemu
 
-// DIUBAH: Tambahkan tipe 'End'
+// DIUBAH: Enum ini adalah gabungan dari kodemu dan kode temanmu
 public enum TileType
 {
-    Normal,      // Petak biasa
-    SnakeStart,  // Petak tempat MULUT Ular (yang bikin turun)
-    LadderStart, // Petak tempat BAWAH Tangga (yang bikin naik)
-    SnakeEnd,    // Petak tempat EKOR Ular (tujuan)
-    LadderEnd    // Petak tempat ATAS Tangga (tujuan)
+    Normal,      
+    SnakeStart,  
+    LadderStart, 
+    SnakeEnd,    // <-- Dari kodemu
+    LadderEnd,   // <-- Dari kodemu
+    BlessingCard // <-- BARU: Dari kode temanmu
 }
 
-// DIHAPUS: Parent tidak lagi perlu Renderer
-// [RequireComponent(typeof(Renderer))] 
 public class Tiles : MonoBehaviour
 {
     [Header("Identitas Tile")]
-    [Tooltip("ID unik untuk tile ini, urut dari 1 (start) sampai akhir (misal: 100)")]
     public int tileID;
-
-    [Tooltip("Tipe dari tile ini (Normal, Ular, atau Tangga)")]
     public TileType type = TileType.Normal;
 
     [Header("Visuals")]
-    [Tooltip("Tarik komponen TextMeshPro child ke sini untuk menampilkan nomor ID")]
-    public TextMeshPro tileNumberText;
+    public TextMeshPro tileNumberText; // <-- Dari kodemu
 
     [Header("Logika Ular/Tangga")]
-    [Tooltip("Hanya diisi jika tipe adalah SnakeStart atau LadderStart. " +
-             "Ini adalah tile tujuan (bisa ditarik dari Hierarchy).")]
     public Tiles targetTile;
 
-    // --- BAGIAN INI DIUBAH ---
+    // DIUBAH: Ini adalah sistem visual dari KODEMU
     [Header("Visual Models (Child Objects)")]
-    [Tooltip("Tarik child object untuk visual 'Normal' ke sini")]
     public GameObject normalModel;
+    public GameObject snakeStartModel;
+    public GameObject ladderStartModel;
 
-    [Tooltip("Tarik child object untuk visual 'Mulai Ular' ke sini")]
-    public GameObject snakeStartModel; // Diganti nama dari 'snakeModel'
-
-    [Tooltip("Tarik child object untuk visual 'Mulai Tangga' ke sini")]
-    public GameObject ladderStartModel; // Diganti nama dari 'ladderModel'
-
-    [Header("Visual Models (Tujuan)")] // <-- BARU
-    [Tooltip("Tarik child object untuk visual 'Tujuan Ular' ke sini")]
+    [Header("Visual Models (Tujuan)")]
     public GameObject snakeEndModel;
-
-    [Tooltip("Tarik child object untuk visual 'Tujuan Tangga' ke sini")]
     public GameObject ladderEndModel;
-    // ---------------------------------
+    
+    // BARU: Tambahkan slot model untuk petak kartu
+    [Header("Visual Models (Spesial)")] 
+    public GameObject blessingCardModel; // <-- BARU
 
-    // Variabel ini untuk melacak perubahan di OnValidate
+    // Variabel OnValidate (dari kodemu)
     [SerializeField, HideInInspector]
     private Tiles lastKnownTarget;
     [SerializeField, HideInInspector]
@@ -59,32 +47,23 @@ public class Tiles : MonoBehaviour
 
     void Start()
     {
-        // Panggil UpdateVisualModel saat game start
+        // Dari kodemu
         UpdateVisualModel();
         UpdateTileNumber();
-
-        // Inisialisasi pelacak state
         lastKnownTarget = targetTile;
         lastKnownType = type;
     }
 
-    // Fungsi OnValidate() akan otomatis update di Editor
+    // Dari kodemu
     void OnValidate()
     {
-        // --- LOGIKA BARU UNTUK AUTO-UPDATE TARGET ---
-
-        // 1. Cek apakah ada perubahan yang relevan
+        // Logika auto-update target (dari kodemu)
         if (type != lastKnownType || targetTile != lastKnownTarget)
         {
-            // 2. BERSIHKAN TARGET LAMA
-            // Jika target lama ada DAN target lama itu BUKAN target baru
             if (lastKnownTarget != null && lastKnownTarget != targetTile)
             {
-                // Suruh target lama kembali jadi 'Normal'
                 lastKnownTarget.SetType(TileType.Normal);
             }
-
-            // 3. ATUR TARGET BARU
             if (type == TileType.LadderStart && targetTile != null)
             {
                 targetTile.SetType(TileType.LadderEnd);
@@ -93,60 +72,40 @@ public class Tiles : MonoBehaviour
             {
                 targetTile.SetType(TileType.SnakeEnd);
             }
-
-            // 4. Jika tile ini di-set jadi Normal, bersihkan targetnya
             if (type == TileType.Normal && targetTile != null)
             {
-                targetTile.SetType(TileType.Normal);
+                 targetTile.SetType(TileType.Normal);
             }
-
-            // 5. Simpan state saat ini untuk perbandingan berikutnya
             lastKnownTarget = targetTile;
             lastKnownType = type;
         }
-
-        // --- Logika Pengaman ---
-        // Jika user set 'End' secara manual, jangan biarkan
         if ((type == TileType.LadderEnd || type == TileType.SnakeEnd))
         {
-            // Cek apakah ada 'Start' tile yang menunjuk ke kita
-            // Ini agak rumit tanpa referensi balik, jadi kita lakukan
-            // cara sederhana: jika user set manual, reset ke Normal
-            // (Kita asumsikan 'targetTile' hanya di-set di 'Start' tile)
-            if (targetTile != null)
+            if (targetTile != null) 
             {
                 Debug.LogWarning($"Tile 'End' ({name}) tidak seharusnya punya Target. Menghapus target...");
-                targetTile = null; // Tile 'End' tidak bisa punya target
+                targetTile = null; 
             }
         }
-
-        // Selalu update visual diri sendiri
+        
         UpdateVisualModel();
         UpdateTileNumber();
     }
 
+    // Dari kodemu (dengan pembersihan debug)
     void UpdateTileNumber()
     {
         if (tileNumberText != null)
         {
-            // Set teks-nya sesuai tileID
             tileNumberText.text = tileID.ToString();
-
-            // --- TAMBAHKAN INI ---
-            Debug.Log($"Berhasil set TILE {tileID} ke teks: {tileNumberText.text}", gameObject);
-            // ---------------------
         }
-        else
-        {
-            // --- TAMBAHKAN INI ---
-            Debug.LogError($"GAGAL! Referensi 'tileNumberText' KOSONG di {gameObject.name}", gameObject);
-            // ---------------------
-        }
+        // else
+        // {
+        //     Debug.LogError($"GAGAL! Referensi 'tileNumberText' KOSONG di {gameObject.name}", gameObject);
+        // }
     }
 
-    /// <summary>
-    /// Fungsi publik untuk mengubah tipe tile ini (dipanggil oleh tile lain)
-    /// </summary>
+    // Dari kodemu
     public void SetType(TileType newType)
     {
         type = newType;
@@ -154,19 +113,18 @@ public class Tiles : MonoBehaviour
     }
 
 
-    /// <summary>
-    /// Mengaktifkan/Menonaktifkan child GameObject berdasarkan 'Type'.
-    /// </summary>
+    // DIUBAH: `UpdateVisualModel` dari kodemu, ditambah `BlessingCard`
     void UpdateVisualModel()
     {
-        // 1. Matikan SEMUA model terlebih dahulu
+        // 1. Matikan SEMUA model
         if (normalModel != null) normalModel.SetActive(false);
         if (snakeStartModel != null) snakeStartModel.SetActive(false);
         if (ladderStartModel != null) ladderStartModel.SetActive(false);
-        if (snakeEndModel != null) snakeEndModel.SetActive(false);     // <-- BARU
-        if (ladderEndModel != null) ladderEndModel.SetActive(false);   // <-- BARU
+        if (snakeEndModel != null) snakeEndModel.SetActive(false);
+        if (ladderEndModel != null) ladderEndModel.SetActive(false);
+        if (blessingCardModel != null) blessingCardModel.SetActive(false); // <-- BARU
 
-        // 2. Aktifkan HANYA model yang sesuai dengan 'Type'
+        // 2. Aktifkan model yang sesuai
         switch (type)
         {
             case TileType.Normal:
@@ -181,33 +139,33 @@ public class Tiles : MonoBehaviour
                 if (ladderStartModel != null)
                     ladderStartModel.SetActive(true);
                 break;
-            case TileType.SnakeEnd: // <-- BARU
+            case TileType.SnakeEnd:
                 if (snakeEndModel != null)
                     snakeEndModel.SetActive(true);
                 break;
-            case TileType.LadderEnd: // <-- BARU
+            case TileType.LadderEnd:
                 if (ladderEndModel != null)
                     ladderEndModel.SetActive(true);
+                break;
+            // BARU: Tambahkan case untuk kartu
+            case TileType.BlessingCard: 
+                if (blessingCardModel != null)
+                    blessingCardModel.SetActive(true);
                 break;
         }
     }
 
-
-    /// <summary>
-    /// Memberikan posisi di mana pemain harus berdiri di atas tile ini.
-    /// (Tidak berubah)
-    /// </summary>
+    // Dari kodemu
     public Vector3 GetPlayerPosition()
     {
         return transform.position + Vector3.up * 0.5f;
     }
 
-    // --- Bantuan Visual di Editor ---
-    // (Fungsi OnDrawGizmos dan DrawGizmoArrow tidak berubah)
+    // Dari kodemu
+    #region Gizmos
     void OnDrawGizmos()
     {
         if (targetTile == null) return;
-
         if (type == TileType.LadderStart)
         {
             Gizmos.color = new Color(0, 1, 0, 0.7f);
@@ -229,4 +187,5 @@ public class Tiles : MonoBehaviour
         Gizmos.DrawRay(end, right * -0.5f);
         Gizmos.DrawRay(end, left * -0.5f);
     }
+    #endregion
 }
