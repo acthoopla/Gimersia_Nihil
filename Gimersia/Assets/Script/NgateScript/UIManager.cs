@@ -318,5 +318,18 @@ public class UIManager : MonoBehaviour
         Time.timeScale = 1f; // Selalu reset TimeScale!
         SceneManager.LoadScene(mainMenuSceneName);
     }
+
+    /// <summary>
+    /// BARU: Menandai UI pemain sebagai pemenang
+    /// </summary>
+    public void SetPlayerAsWinner(int playerIndex)
+    {
+        if (playerIndex >= 0 && playerIndex < uiEntries.Count)
+        {
+            uiEntries[playerIndex].SetAsWinner();
+        }
+    }
+    // ---------------------------------
+
     #endregion
 }

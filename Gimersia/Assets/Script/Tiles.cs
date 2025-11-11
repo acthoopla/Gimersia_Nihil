@@ -178,7 +178,7 @@ public class Tiles : MonoBehaviour
         ladderStartModel = FindChildModel(transform, "Tile_Tangga" + theme);
         snakeEndModel = FindChildModel(transform, "Tile_Buntut" + theme);
         ladderEndModel = FindChildModel(transform, "Tile_Tangga" + theme);
-        blessingCardModel = FindChildModel(transform, "Tile_" + theme + "Coak");
+        blessingCardModel = FindChildModel(transform, "Tile_" + theme + "Plate");
 
         snakePathStraightModel = FindChildModel(pathContainer, "Tile_JalurBuntutLurus" + theme);
         snakePathBendModel1 = FindChildModel(pathContainer, "Tile_JalurBuntutBelok" + theme + "_1");

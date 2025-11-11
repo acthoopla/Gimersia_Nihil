@@ -1,5 +1,3 @@
-using System.Collections;
-using System.Collections.Generic;
 using UnityEngine;
 using TMPro;
 
@@ -19,11 +17,7 @@ public class PlayerUIEntry : MonoBehaviour
 
     void Awake()
     {
-        // Ambil komponen RectTransform
         rectTransform = GetComponent<RectTransform>();
-
-        // Simpan posisi X normalnya
-        // (Vertical Layout Group akan mengatur Y, kita hanya peduli X)
         originalX = rectTransform.anchoredPosition.x;
     }
 
@@ -44,6 +38,7 @@ public class PlayerUIEntry : MonoBehaviour
     public void SetActive(bool isActive)
     {
         if (rectTransform == null) return;
+        if (playerNameText.fontStyle == FontStyles.Strikethrough) return; // Jangan aktifkan jika sudah menang
 
         Vector2 currentPos = rectTransform.anchoredPosition;
 
@@ -51,13 +46,34 @@ public class PlayerUIEntry : MonoBehaviour
         {
             // Geser ke KANAN (maju)
             rectTransform.anchoredPosition = new Vector2(originalX + activeXOffset, currentPos.y);
-            playerNameText.fontStyle = FontStyles.Bold; // Bonus: bikin tebal
+            playerNameText.fontStyle = FontStyles.Bold;
         }
         else
         {
             // Kembalikan ke posisi NORMAL
             rectTransform.anchoredPosition = new Vector2(originalX, currentPos.y);
-            playerNameText.fontStyle = FontStyles.Normal; // Bonus: bikin normal
+            playerNameText.fontStyle = FontStyles.Normal;
         }
     }
+
+    // --- FUNGSI BARU ---
+    /// <summary>
+    /// Dipanggil oleh UIManager saat pemain ini menang
+    /// </summary>
+    public void SetAsWinner()
+    {
+        if (playerNameText != null)
+        {
+            // 1. Set teks jadi abu-abu dan coret
+            playerNameText.color = Color.gray;
+            playerNameText.fontStyle = FontStyles.Strikethrough;
+        }
+
+        // 2. Pastikan posisinya kembali normal (tidak menjorok)
+        if (rectTransform != null)
+        {
+            rectTransform.anchoredPosition = new Vector2(originalX, rectTransform.anchoredPosition.y);
+        }
+    }
+    // -------------------
 }

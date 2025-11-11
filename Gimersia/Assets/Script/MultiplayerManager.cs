@@ -42,13 +42,15 @@ public class MultiplayerManager : MonoBehaviour
     public Dice physicalDice;
     public GameObject diceContainmentWall;
 
-    // --- VARIABEL BARU DI SINI ---
     [Header("Game Animations")]
-    [Tooltip("Seberapa jauh tile turun saat animasi ular (gunakan nilai negatif)")]
     public float snakeAnimationHeight = -2.0f;
-    [Tooltip("Kecepatan animasi turun/naik")]
     public float snakeAnimationSpeed = 3.0f;
-    // -----------------------------
+    [Space(10)]
+    public GameObject ladderStepPrefab;
+    public float ladderDeployHeight = 10f;
+    public float ladderDeploySpeed = 15f;
+    public float ladderStepDelay = 0.05f;
+    public float ladderVerticalOffset = 0.1f;
 
     [Header("Board Settings")]
     public int totalTilesInBoard = 100;
@@ -60,7 +62,6 @@ public class MultiplayerManager : MonoBehaviour
     #endregion
 
     #region Variabel Internal
-    // (Tidak ada perubahan di sini)
     private List<Tiles> boardTiles = new List<Tiles>();
     private List<PlayerPawn> players = new List<PlayerPawn>();
     private int selectedPlayerCount = 0;
@@ -79,9 +80,12 @@ public class MultiplayerManager : MonoBehaviour
     private List<PlayerPawn> currentValidTargets = new List<PlayerPawn>();
     private bool isInReverseMode = false;
     private PlayerPawn playerWaitingForCard;
+
+    // --- VARIABEL BARU UNTUK LOGIKA KEMENANGAN ---
+    private List<PlayerPawn> winners = new List<PlayerPawn>();
+    // ------------------------------------------
     #endregion
 
-    // (Semua fungsi dari Awake s/d FinalizeTurnOrder tidak berubah)
     #region Unity Callbacks & Setup
     void Awake()
     {
@@ -128,6 +132,7 @@ public class MultiplayerManager : MonoBehaviour
         StartCoroutine(ClearAndSpawnRoutine(count));
     }
 
+    // --- FUNGSI INI DIUBAH (NAMA PLAYER) ---
     void SpawnPlayers(int count)
     {
         players.Clear();
@@ -140,7 +145,11 @@ public class MultiplayerManager : MonoBehaviour
         {
             GameObject prefabToSpawn = playerPrefabs[i];
             GameObject go = Instantiate(prefabToSpawn, playersParent);
-            go.name = $"Player_{i + 1}";
+
+            // --- PERBAIKAN NAMA (Request #4) ---
+            go.name = $"Player {i + 1}"; // Menggunakan spasi, bukan underscore
+                                         // ---------------------------------
+
             PlayerPawn pp = go.GetComponent<PlayerPawn>();
             if (pp == null) pp = go.AddComponent<PlayerPawn>();
 
@@ -154,9 +163,10 @@ public class MultiplayerManager : MonoBehaviour
             go.transform.position = posWithOffset;
             players.Add(pp);
         }
-        Debug.Log($"SpawnPlayers: spawned {players.Count} players");
     }
+    // ------------------------------------------
 
+    // --- FUNGSI INI DIUBAH (RESET WINNERS) ---
     IEnumerator ClearAndSpawnRoutine(int count)
     {
         if (playersParent != null)
@@ -167,13 +177,20 @@ public class MultiplayerManager : MonoBehaviour
             }
             yield return null;
         }
-        players.Clear(); drawnNumbers.Clear(); turnOrder.Clear();
-        drawIndex = 0; currentTurnIdx = 0; currentCycle = 1;
+        players.Clear();
+        drawnNumbers.Clear();
+        turnOrder.Clear();
+        winners.Clear(); // <-- RESET DAFTAR PEMENANG
+
+        drawIndex = 0;
+        currentTurnIdx = 0;
+        currentCycle = 1;
         selectedPlayerCount = count;
         SpawnPlayers(count);
         StartOrderSelection();
         isSpawning = false;
     }
+    // ------------------------------------------
 
     void StartOrderSelection()
     {
@@ -298,7 +315,7 @@ public class MultiplayerManager : MonoBehaviour
         AdvanceTurn();
     }
 
-    // (HandlePlayerRollAndMove tidak berubah)
+    // --- FUNGSI INI DIUBAH (LOGIKA MENANG) ---
     IEnumerator HandlePlayerRollAndMove(PlayerPawn player, int roll)
     {
         if (infoText != null) infoText.text = $"{player.name} roll {roll}";
@@ -309,6 +326,7 @@ public class MultiplayerManager : MonoBehaviour
         if (validTargets.Count > 0 && currentCycle > 1)
         {
             #region Reverse Logic
+            // (Logika Reverse tidak berubah)
             currentValidTargets = validTargets;
             currentActorForSelection = player;
             selectedTargetForReverse = null;
@@ -383,11 +401,27 @@ public class MultiplayerManager : MonoBehaviour
             #region Normal Move Logic
             int startTile = player.currentTileID;
             int finalTarget = startTile + roll;
+
+            // --- INI BLOK LOGIKA KEMENANGAN (REQUEST #1) ---
             if (finalTarget == totalTilesInBoard)
             {
                 yield return StartCoroutine(player.MoveToTile(finalTarget, (int id) => GetTilePositionWithOffset(id, player)));
                 if (infoText != null) infoText.text = $"{player.name} mencapai finish!";
+
+                // Tambahkan ke daftar pemenang
+                if (!winners.Contains(player))
+                {
+                    winners.Add(player);
+                    player.SetHighlight(false); // Matikan highlight
+                    if (uiManager != null)
+                    {
+                        // Cari index pemain di 'turnOrder'
+                        int winnerIndex = turnOrder.IndexOf(player);
+                        uiManager.SetPlayerAsWinner(winnerIndex);
+                    }
+                }
             }
+            // ---------------------------------------------
             else if (finalTarget > totalTilesInBoard)
             {
                 int overshoot = finalTarget - totalTilesInBoard;
@@ -401,7 +435,12 @@ public class MultiplayerManager : MonoBehaviour
                 yield return StartCoroutine(player.MoveToTile(finalTarget, (int id) => GetTilePositionWithOffset(id, player)));
             }
 
-            yield return StartCoroutine(CheckLandingTile(player));
+            // Cek Ular/Tangga/Kartu HANYA jika tidak menang
+            if (player.currentTileID != totalTilesInBoard)
+            {
+                yield return StartCoroutine(CheckLandingTile(player));
+            }
+
             UpdatePawnPositionsOnTile(player.currentTileID);
             #endregion
         }
@@ -409,14 +448,15 @@ public class MultiplayerManager : MonoBehaviour
         isActionRunning = false;
         yield break;
     }
+    // ------------------------------------------
 
-    // --- FUNGSI INI DIUBAH TOTAL ---
+    // (CheckLandingTile tidak berubah)
     IEnumerator CheckLandingTile(PlayerPawn player)
     {
         Tiles landed = GetTileByID(player.currentTileID);
         if (landed == null) yield break;
 
-        // --- 1. Cek Ular (LOGIKA ANIMASI BARU) ---
+        // 1. Cek Ular
         if (landed.type == TileType.SnakeStart && landed.targetTile != null)
         {
             if (player.immuneToSnakeUses > 0)
@@ -430,27 +470,26 @@ public class MultiplayerManager : MonoBehaviour
                 if (infoText != null) infoText.text = $"{player.name} Turun ular!";
                 yield return new WaitForSeconds(0.2f);
 
-                // Panggil Coroutine Animasi baru, BUKAN TeleportToTile
                 Tiles startTile = landed;
                 Tiles endTile = landed.targetTile;
                 yield return StartCoroutine(AnimateSnakeSequence(player, startTile, endTile));
 
-                // Update posisi offset setelah animasi
                 UpdatePawnPositionsOnTile(player.currentTileID);
             }
         }
-        // --- 2. Cek Tangga (Logika lama masih berlaku) ---
+        // 2. Cek Tangga
         else if (landed.type == TileType.LadderStart && landed.targetTile != null)
         {
             if (infoText != null) infoText.text = $"{player.name} Naik tangga!";
             yield return new WaitForSeconds(0.2f);
-            int targetID = landed.targetTile.tileID;
-            yield return StartCoroutine(player.TeleportToTile(targetID, (int id) => GetTilePositionWithOffset(id, player)));
 
-            // Update posisi offset setelah teleport
+            Tiles startTile = landed;
+            Tiles endTile = landed.targetTile;
+            yield return StartCoroutine(AnimateLadderSequence(player, startTile, endTile));
+
             UpdatePawnPositionsOnTile(player.currentTileID);
         }
-        // --- 3. Cek Kartu Blessing (Logika lama masih berlaku) ---
+        // 3. Cek Kartu Blessing
         else if (landed.type == TileType.BlessingCard)
         {
             if (infoText != null) infoText.text = $"{player.name} mendarat di petak Blessing!";
@@ -458,13 +497,47 @@ public class MultiplayerManager : MonoBehaviour
             yield return StartCoroutine(ShowCardChoiceRoutine(player));
         }
     }
-    // ------------------------------------
 
-    // (Fungsi AdvanceTurn dan CheckForExpiredCards tidak berubah)
+    // --- FUNGSI INI DIUBAH TOTAL (LOGIKA MENANG) ---
     void AdvanceTurn()
     {
-        currentTurnIdx = (currentTurnIdx + 1) % turnOrder.Count;
+        // 1. Cek dulu apakah game sudah berakhir (REQUEST #3)
+        // Jumlah pemain aktif = Total Pemain - Jumlah Pemenang
+        int activePlayerCount = turnOrder.Count - winners.Count;
 
+        if (activePlayerCount <= 1)
+        {
+            isActionRunning = true; // Kunci game
+            if (infoText != null)
+            {
+                if (activePlayerCount == 1)
+                {
+                    // Temukan 1 pemain yang kalah
+                    PlayerPawn loser = turnOrder.FirstOrDefault(p => !winners.Contains(p));
+                    if (loser != null)
+                        infoText.text = $"Game Selesai! {loser.name} adalah yang terakhir!";
+                    else
+                        infoText.text = "Game Selesai! Seri!";
+                }
+                else // activePlayerCount == 0 (jika semua menang)
+                {
+                    infoText.text = "Game Selesai! Semua pemain telah menang!";
+                }
+            }
+            if (physicalDice != null) physicalDice.gameObject.SetActive(false); // Matikan dadu
+            return; // Jangan ganti giliran lagi
+        }
+
+        // 2. Jika game belum selesai, cari pemain berikutnya (REQUEST #2)
+        PlayerPawn nextPlayer;
+        do
+        {
+            currentTurnIdx = (currentTurnIdx + 1) % turnOrder.Count;
+            nextPlayer = turnOrder[currentTurnIdx];
+        }
+        while (winners.Contains(nextPlayer)); // Ulangi jika pemain ini sudah menang
+
+        // --- Logika Cycle & Skip Turn (dari temanmu) ---
         if (currentTurnIdx == 0)
         {
             currentCycle++;
@@ -473,6 +546,8 @@ public class MultiplayerManager : MonoBehaviour
 
             foreach (var p in players)
             {
+                if (winners.Contains(p)) continue; // Jangan proses pemenang
+
                 p.wasReversedThisCycle = false;
                 p.ShowReversedBadge(false);
                 p.hasAresProvocation = false;
@@ -482,19 +557,21 @@ public class MultiplayerManager : MonoBehaviour
             }
         }
 
-        PlayerPawn nextPlayer = turnOrder[currentTurnIdx];
         if (nextPlayer.skipTurns > 0)
         {
             if (infoText != null) infoText.text = $"{nextPlayer.name} skip giliran karena efek Anubis!";
             nextPlayer.skipTurns--;
-            AdvanceTurn();
+            AdvanceTurn(); // Panggil lagi untuk cari pemain berikutnya
             return;
         }
+        // ---------------------------------------------
 
         isActionRunning = false;
         HighlightCurrentPlayer();
     }
+    // ------------------------------------------
 
+    // (Fungsi CheckForExpiredCards tidak berubah)
     void CheckForExpiredCards(PlayerPawn player)
     {
         List<PlayerCardInstance> expiredCards = player.heldCards
@@ -627,22 +704,18 @@ public class MultiplayerManager : MonoBehaviour
     {
         if (!isInReverseMode || !awaitingTargetSelection)
         {
-            Debug.Log($"Pawn clicked ignored: isInReverseMode={isInReverseMode}, awaiting={awaitingTargetSelection}");
             return;
         }
         if (currentActorForSelection != null && clickedPawn == currentActorForSelection)
         {
-            Debug.Log("Pawn clicked is actor itself - ignored");
             return;
         }
         if (currentValidTargets == null || !currentValidTargets.Contains(clickedPawn))
         {
-            Debug.Log($"Pawn clicked not in valid targets: {clickedPawn.name}");
             return;
         }
         selectedTargetForReverse = clickedPawn;
         awaitingTargetSelection = false;
-        Debug.Log($"Pawn clicked accepted: {clickedPawn.name}");
     }
 
     private void CleanupChoiceUI()
@@ -921,55 +994,46 @@ public class MultiplayerManager : MonoBehaviour
     }
     #endregion
 
-    // --- FUNGSI BARU UNTUK ANIMASI ULAR ---
+    // (Fungsi AnimateSnakeSequence tidak berubah)
+    #region Animations
     private IEnumerator AnimateSnakeSequence(PlayerPawn player, Tiles startTile, Tiles endTile)
     {
         Vector3 verticalOffset = new Vector3(0, snakeAnimationHeight, 0);
-
-        // 1. Ambil semua posisi Asli
-        // (Penting: GetPlayerPosition() MENGEMBALIKAN POSISI ASLI)
         Vector3 startTilePos_Original = startTile.transform.position;
         Vector3 endTilePos_Original = endTile.transform.position;
         Vector3 playerPos_Start_Original = player.transform.position;
 
-        // 2. Tentukan semua posisi "Turun"
         Vector3 startTilePos_Down = startTilePos_Original + verticalOffset;
         Vector3 endTilePos_Down = endTilePos_Original + verticalOffset;
         Vector3 playerPos_Start_Down = playerPos_Start_Original + verticalOffset;
 
-        // 3. FASE 1: Bergerak TURUN
+        // FASE 1: Turun
         float t = 0;
         while (t < 1.0f)
         {
-            // Lerp = Linear Interpolation (gerak lurus)
             t += Time.deltaTime * snakeAnimationSpeed;
             startTile.transform.position = Vector3.Lerp(startTilePos_Original, startTilePos_Down, t);
             endTile.transform.position = Vector3.Lerp(endTilePos_Original, endTilePos_Down, t);
             player.transform.position = Vector3.Lerp(playerPos_Start_Original, playerPos_Start_Down, t);
             yield return null;
         }
-        // Paksa ke posisi final untuk presisi
         startTile.transform.position = startTilePos_Down;
         endTile.transform.position = endTilePos_Down;
         player.transform.position = playerPos_Start_Down;
 
-        // 4. FASE 2: Pindah Pawn (di "bawah tanah")
-        // Ambil posisi Asli tile tujuan, lalu tambahkan offset
+        // FASE 2: Pindah
         Vector3 playerPos_End_Down = endTile.GetPlayerPosition() + verticalOffset;
         player.transform.position = playerPos_End_Down;
-        player.currentTileID = endTile.tileID; // Update ID pemain
+        player.currentTileID = endTile.tileID;
 
-        // Atur Rotasi pemain agar menghadap arah yang benar
         int row = (player.currentTileID - 1) / 10;
         float targetYAngle = (row % 2 == 0) ? 0f : 180f;
         player.transform.rotation = Quaternion.Euler(0, targetYAngle, 0);
 
-        yield return new WaitForSeconds(0.25f); // Jeda sedikit
+        yield return new WaitForSeconds(0.25f);
 
-        // 5. Tentukan posisi "Naik"
+        // FASE 3: Naik
         Vector3 playerPos_End_Original = endTile.GetPlayerPosition();
-
-        // 6. FASE 3: Bergerak NAIK
         t = 0;
         while (t < 1.0f)
         {
@@ -979,9 +1043,69 @@ public class MultiplayerManager : MonoBehaviour
             player.transform.position = Vector3.Lerp(playerPos_End_Down, playerPos_End_Original, t);
             yield return null;
         }
-        // Paksa ke posisi final
         startTile.transform.position = startTilePos_Original;
         endTile.transform.position = endTilePos_Original;
         player.transform.position = playerPos_End_Original;
     }
+
+    // (AnimateLadderSequence tidak berubah)
+    private IEnumerator AnimateLadderSequence(PlayerPawn player, Tiles startTile, Tiles endTile)
+    {
+        if (ladderStepPrefab == null)
+        {
+            Debug.LogError("Prefab Tangga (ladderStepPrefab) belum di-set di MultiplayerManager!");
+            yield return StartCoroutine(player.TeleportToTile(endTile.tileID, (int id) => GetTilePositionWithOffset(id, player)));
+            yield break;
+        }
+
+        List<GameObject> deployedLadderSteps = new List<GameObject>();
+
+        Vector3 verticalOffset = new Vector3(0, ladderVerticalOffset, 0);
+        Vector3 startPos = startTile.GetPlayerPosition() + verticalOffset;
+        Vector3 endPos = endTile.GetPlayerPosition() + verticalOffset;
+
+        Vector3 direction = (endPos - startPos).normalized;
+        float distance = Vector3.Distance(startPos, endPos);
+        Quaternion rotation = Quaternion.LookRotation(direction);
+        int stepCount = Mathf.Max(1, Mathf.RoundToInt(distance));
+
+        // FASE 1: Bangun
+        for (int i = 0; i <= stepCount; i++)
+        {
+            float t_lerp = (float)i / stepCount;
+            Vector3 stepFinalPos = Vector3.Lerp(startPos, endPos, t_lerp);
+            Vector3 stepSpawnPos = stepFinalPos + new Vector3(0, ladderDeployHeight, 0);
+
+            GameObject step = Instantiate(ladderStepPrefab, stepSpawnPos, rotation);
+            deployedLadderSteps.Add(step);
+
+            float fallTime = 0;
+            float fallDuration = Vector3.Distance(stepSpawnPos, stepFinalPos) / ladderDeploySpeed;
+            if (fallDuration <= 0) fallDuration = 0.1f;
+
+            while (fallTime < 1.0f)
+            {
+                fallTime += Time.deltaTime / fallDuration;
+                step.transform.position = Vector3.Lerp(stepSpawnPos, stepFinalPos, fallTime);
+                yield return null;
+            }
+            step.transform.position = stepFinalPos;
+
+            yield return new WaitForSeconds(ladderStepDelay);
+        }
+
+        // FASE 2: Pindah
+        // DIUBAH: Menggunakan overload baru agar pion mendarat DI ATAS tangga (endPos)
+        yield return StartCoroutine(player.TeleportToTile(endTile.tileID, endPos));
+
+        // FASE 3: Hancurkan
+        yield return new WaitForSeconds(0.5f);
+
+        foreach (GameObject step in deployedLadderSteps)
+        {
+            Destroy(step);
+            yield return new WaitForSeconds(ladderStepDelay / 2);
+        }
+    }
+    #endregion
 }
