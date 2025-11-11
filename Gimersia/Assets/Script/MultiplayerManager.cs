@@ -10,7 +10,7 @@ public class MultiplayerManager : MonoBehaviour
     // (Semua variabel Header-mu tidak berubah)
     #region Variabel Inspector
     [Header("Prefabs & References")]
-    public GameObject[] playerPrefabs;
+    public GameObject[] playerPrefabs; 
     public Transform playersParent;
 
     [Header("UI - Player Count Selection")]
@@ -36,11 +36,11 @@ public class MultiplayerManager : MonoBehaviour
 
     [Header("Dice Physics")]
     public Dice physicalDice;
-    public GameObject diceContainmentWall;
+    public GameObject diceContainmentWall; 
 
     [Header("Board Settings")]
     public int totalTilesInBoard = 100;
-
+    
     [Header("Tile Offset")]
     public float tileOffsetBaseRadius = 0.25f;
     public float tileOffsetPerPlayer = 0.18f;
@@ -60,14 +60,14 @@ public class MultiplayerManager : MonoBehaviour
     private bool isActionRunning = false;
     public bool IsActionRunning => isActionRunning;
     private bool isSpawning = false;
-    private int currentCycle = 1;
+    private int currentCycle = 1; 
     private bool awaitingTargetSelection = false;
     private PlayerPawn selectedTargetForReverse = null;
     private PlayerPawn currentActorForSelection = null;
     private List<PlayerPawn> currentValidTargets = new List<PlayerPawn>();
     private bool isInReverseMode = false;
     #endregion
-
+    
     // (Fungsi Awake() dan Start() tidak berubah)
     #region Unity Callbacks
     void Awake()
@@ -97,7 +97,7 @@ public class MultiplayerManager : MonoBehaviour
         }
     }
     #endregion
-
+    
     // (Fungsi Spawn & Order Selection tidak berubah)
     #region Player Spawn & Order Selection
     void OnChoosePlayerCount(int count)
@@ -244,7 +244,7 @@ public class MultiplayerManager : MonoBehaviour
         if (infoText != null) infoText.text = $"{current.name} melempar dadu...";
         int rollResult = 0;
         yield return StartCoroutine(physicalDice.WaitForRollToStop((result) => { rollResult = result; }));
-        DisableDiceWall();
+        DisableDiceWall(); 
         yield return StartCoroutine(HandlePlayerRollAndMove(current, rollResult));
     }
 
@@ -315,11 +315,11 @@ public class MultiplayerManager : MonoBehaviour
                             yield return StartCoroutine(target.TeleportToTile(tid, (int id) => GetTilePositionWithOffset(id, target)));
                         }
                     }
-
+                    
                     // --- PERBAIKAN BUG STACKING (1) ---
                     UpdatePawnPositionsOnTile(target.currentTileID); // Update posisi di tile tujuan
-                                                                     // ---------------------------------
-
+                    // ---------------------------------
+                    
                     target.wasReversedThisCycle = true;
                     target.ShowReversedBadge(true);
                     if (currentValidTargets != null && currentValidTargets.Contains(target))
@@ -392,7 +392,7 @@ public class MultiplayerManager : MonoBehaviour
                 }
             }
             #endregion
-
+            
             // --- PERBAIKAN BUG STACKING (2) ---
             UpdatePawnPositionsOnTile(player.currentTileID); // Update posisi di tile tujuan
             // ---------------------------------
@@ -408,7 +408,7 @@ public class MultiplayerManager : MonoBehaviour
                 p.ShowReversedBadge(false);
             }
             Debug.Log("Cycle selesai: reset wasReversedThisCycle dan badge.");
-            currentCycle++;
+            currentCycle++; 
             Debug.Log($"Memasuki Cycle baru: {currentCycle}");
         }
 
@@ -432,7 +432,7 @@ public class MultiplayerManager : MonoBehaviour
         }
     }
     #endregion
-
+    
     // (Fungsi Helper Board & Tembok tidak berubah)
     #region Board, UI, & Dice Wall Helpers
     Vector3 GetTilePosition(int tileID)
@@ -452,7 +452,7 @@ public class MultiplayerManager : MonoBehaviour
     {
         Vector3 center = GetTilePosition(tileID);
         var onTile = players.Where(p => p.currentTileID == tileID).OrderBy(p => p.playerIndex).ToList();
-
+        
         // --- LOGIKA PENTING UNTUK PREDIKSI POSISI ---
         // Jika pion yang ditanya BELUM ada di tile (dia sedang bergerak ke sana),
         // kita tambahkan dia ke list SEMENTARA untuk menghitung posisi barunya.
@@ -474,7 +474,7 @@ public class MultiplayerManager : MonoBehaviour
         Vector3 upOffset = Vector3.up * (tileOffsetHeightStep * slot);
         return center + offset + upOffset;
     }
-
+    
     // --- FUNGSI BARU UNTUK FIX STACKING ---
     /// <summary>
     /// Memperbarui (nudge) posisi semua pion di tile tertentu
@@ -488,7 +488,7 @@ public class MultiplayerManager : MonoBehaviour
         {
             // Minta posisi offset yang benar
             Vector3 newPos = GetTilePositionWithOffset(tileID, pawn);
-
+            
             // Suruh pawn pindah ke posisi itu
             pawn.MoveToPosition(newPos);
         }
@@ -508,7 +508,7 @@ public class MultiplayerManager : MonoBehaviour
         panelGroup.alpha = 0;
         panelGroup.gameObject.SetActive(false);
     }
-
+    
     public void DisableDiceWall()
     {
         if (diceContainmentWall != null)
@@ -525,7 +525,7 @@ public class MultiplayerManager : MonoBehaviour
         }
     }
     #endregion
-
+    
     // (Fungsi Reverse Helper tidak berubah)
     #region Reverse Helpers
     public List<PlayerPawn> GetValidReverseTargets(PlayerPawn actor)

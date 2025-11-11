@@ -1,4 +1,5 @@
 using UnityEngine;
+using TMPro;
 
 // DIUBAH: Tambahkan tipe 'End'
 public enum TileType
@@ -20,6 +21,10 @@ public class Tiles : MonoBehaviour
 
     [Tooltip("Tipe dari tile ini (Normal, Ular, atau Tangga)")]
     public TileType type = TileType.Normal;
+
+    [Header("Visuals")]
+    [Tooltip("Tarik komponen TextMeshPro child ke sini untuk menampilkan nomor ID")]
+    public TextMeshPro tileNumberText;
 
     [Header("Logika Ular/Tangga")]
     [Tooltip("Hanya diisi jika tipe adalah SnakeStart atau LadderStart. " +
@@ -56,6 +61,7 @@ public class Tiles : MonoBehaviour
     {
         // Panggil UpdateVisualModel saat game start
         UpdateVisualModel();
+        UpdateTileNumber();
 
         // Inisialisasi pelacak state
         lastKnownTarget = targetTile;
@@ -116,6 +122,26 @@ public class Tiles : MonoBehaviour
 
         // Selalu update visual diri sendiri
         UpdateVisualModel();
+        UpdateTileNumber();
+    }
+
+    void UpdateTileNumber()
+    {
+        if (tileNumberText != null)
+        {
+            // Set teks-nya sesuai tileID
+            tileNumberText.text = tileID.ToString();
+
+            // --- TAMBAHKAN INI ---
+            Debug.Log($"Berhasil set TILE {tileID} ke teks: {tileNumberText.text}", gameObject);
+            // ---------------------
+        }
+        else
+        {
+            // --- TAMBAHKAN INI ---
+            Debug.LogError($"GAGAL! Referensi 'tileNumberText' KOSONG di {gameObject.name}", gameObject);
+            // ---------------------
+        }
     }
 
     /// <summary>
