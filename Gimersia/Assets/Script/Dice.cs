@@ -18,10 +18,8 @@ public class Dice : MonoBehaviour
     public float torqueAmount = 10f;
     public float flickSensitivity = 1.5f;
 
-    // --- BARU: Tambahkan variabel ini ---
     [Tooltip("Kecepatan dadu berputar saat di-drag mouse")]
     public float dragSpinSpeed = 200f;
-    // ---------------------------------
 
     // --- Variabel Internal ---
     private Vector3 startPosition;
@@ -48,12 +46,18 @@ public class Dice : MonoBehaviour
         transform.rotation = Quaternion.identity;
         rb.isKinematic = true;
         rb.useGravity = false;
+
+        // MATIKAN tembok agar dadu bisa di-klik
+        if (manager != null)
+        {
+            manager.DisableDiceWall();
+        }
     }
 
     public IEnumerator WaitForRollToStop(Action<int> callback)
     {
         yield return new WaitForSeconds(0.5f);
-        while (rb.velocity.magnitude > 0.05f || rb.angularVelocity.magnitude > 0.05f)
+        while (rb.velocity.magnitude > 0.005f || rb.angularVelocity.magnitude > 0.005f)
         {
             yield return null;
         }
@@ -102,20 +106,15 @@ public class Dice : MonoBehaviour
     {
         if (!isDragging) return;
 
-        // Gerakkan dadu di sepanjang 'bidang'
         Ray ray = mainCamera.ScreenPointToRay(Input.mousePosition);
         if (dragPlane.Raycast(ray, out float distance))
         {
             Vector3 newPos = ray.GetPoint(distance) + dragOffset;
             transform.position = newPos;
 
-            // --- BARU: Putar dadu secara manual ---
-            // Kita putar di dua sumbu agar terlihat 'mengguling' acak
             transform.Rotate(Vector3.up, dragSpinSpeed * Time.deltaTime, Space.World);
             transform.Rotate(Vector3.right, dragSpinSpeed * 0.8f * Time.deltaTime, Space.Self);
-            // --------------------------------------
 
-            // Lacak kecepatan untuk 'flick'
             Vector3 velocity = (transform.position - lastPosition) / Time.deltaTime;
             lastPosition = transform.position;
             velocityHistory.Add(velocity);
@@ -131,6 +130,12 @@ public class Dice : MonoBehaviour
         if (!isDragging) return;
 
         isDragging = false;
+
+        // Dadu dilempar, AKTIFKAN tembok penahan
+        if (manager != null)
+        {
+            manager.EnableDiceWall();
+        }
 
         // Hidupkan lagi fisika
         rb.isKinematic = false;
@@ -150,7 +155,7 @@ public class Dice : MonoBehaviour
         // Terapkan gaya 'flick'
         rb.AddForce(flickVelocity * flickSensitivity, ForceMode.Impulse);
 
-        // Tambahkan putaran acak (ini TIDAK mengambil dari putaran drag)
+        // Tambahkan putaran acak
         rb.AddTorque(
             UnityEngine.Random.Range(-1f, 1f),
             UnityEngine.Random.Range(-1f, 1f),

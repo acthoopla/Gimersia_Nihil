@@ -1,53 +1,74 @@
 using System.Collections;
 using UnityEngine;
+using UnityEngine.UI;
 using TMPro;
 
-/// <summary>
-/// PlayerPawn.cs (Versi Final Gabungan)
-/// Menggunakan 'SetManager' (lebih efisien)
-/// </summary>
-[RequireComponent(typeof(Collider))] // memastikan ada collider agar OnMouseDown dipanggil
 public class PlayerPawn : MonoBehaviour
 {
-    [Header("Data Pemain")]
+    [Header("Player Data")]
     public int currentTileID = 1;
-    public int playerIndex = 0; // 0-based index
-    [Tooltip("True jika pawn ini sudah dimundurkan di cycle saat ini")]
-    public bool wasReversedThisCycle = false;
+    public int playerIndex = 0; // 0-based
+    private MultiplayerManager manager; // <-- TAMBAHKAN INI
 
     [Header("Visuals")]
-    public Renderer bodyRenderer;          // mesh renderer utama
-    public TextMeshPro labelTMP;           // optional: label 3D (P1, P2, ...)
-    public Color[] defaultColors;          // warna per index
-    public GameObject reversedBadge;       // optional: objek badge (TextMeshPro 3D atau sprite) yang muncul saat reversed
+    public Renderer bodyRenderer;
+    public TextMeshPro labelTMP;
+    public Color[] defaultColors; // assign di prefab atau override di inspector
+    public GameObject reversedBadge; // <-- TAMBAHKAN INI
 
     [Header("Movement")]
-    public float stepSpeed = 5f;           // kecepatan movement
-    public float stepDelay = 0.08f;        // jeda antar step per tile
+    public float stepSpeed = 5f;
+    public float stepDelay = 0.08f;
+    public float rotationSpeed = 360f; // <-- TAMBAHKAN INI (Kecepatan putar)
 
-    // --- PERUBAHAN DI SINI ---
-    // internal
+    // Status
+    [HideInInspector]
+    public bool wasReversedThisCycle = false; // <-- TAMBAHKAN INI
+
     private Vector3 baseScale;
-    private MultiplayerManager manager; // Referensi yang di-cache (lebih efisien)
-    // -------------------------
 
     void Awake()
     {
-        baseScale = transform.localScale;
-        if (reversedBadge != null) reversedBadge.SetActive(false);
         if (bodyRenderer == null)
             bodyRenderer = GetComponentInChildren<Renderer>();
+
+        baseScale = transform.localScale;
+        if (reversedBadge != null) reversedBadge.SetActive(false); // Pastikan mati di awal
     }
 
-    // --- TAMBAHKAN FUNGSI INI ---
+    // --- TAMBAHKAN 3 FUNGSI BARU DI BAWAH INI ---
+
     /// <summary>
-    /// Dipanggil oleh MultiplayerManager saat spawn untuk menyimpan referensi.
+    /// Memberi tahu pawn siapa managernya
     /// </summary>
-    public void SetManager(MultiplayerManager mgr)
+    public void SetManager(MultiplayerManager m)
     {
-        manager = mgr;
+        manager = m;
     }
-    // ----------------------------
+
+    /// <summary>
+    /// Menampilkan/menyembunyikan tanda 'kena reverse'
+    /// </summary>
+    public void ShowReversedBadge(bool show)
+    {
+        if (reversedBadge != null)
+        {
+            reversedBadge.SetActive(show);
+        }
+    }
+
+    /// <summary>
+    /// Dipanggil oleh Manager saat pawn ini di-klik
+    /// </summary>
+    void OnMouseDown()
+    {
+        if (manager != null)
+        {
+            manager.OnPawnClicked(this);
+        }
+    }
+
+    // ------------------------------------------
 
     public void SetVisualIndex(int idx)
     {
@@ -58,54 +79,25 @@ public class PlayerPawn : MonoBehaviour
             Color c = defaultColors[idx % defaultColors.Length];
             bodyRenderer.material.color = c;
         }
+
         transform.localScale = baseScale;
-        if (reversedBadge != null) reversedBadge.SetActive(wasReversedThisCycle);
     }
 
     public void SetHighlight(bool on)
     {
-        float factor = on ? 1.10f : 1.0f;
+        float factor = on ? 1.15f : 1.0f;
         transform.localScale = baseScale * factor;
     }
 
-    public void ShowReversedBadge(bool show)
-    {
-        wasReversedThisCycle = show;
-        if (reversedBadge != null) reversedBadge.SetActive(show);
-    }
-
-    // -----------------------------------
-    // Input: OnMouseDown -> kirim ke Manager
-    // -----------------------------------
-
-    // --- MODIFIKASI FUNGSI INI ---
-    void OnMouseDown()
-    {
-        Debug.Log($"PlayerPawn clicked: {name}");
-
-        // Gunakan referensi manager yang sudah di-cache (jauh lebih cepat)
-        if (manager != null)
-        {
-            manager.OnPawnClicked(this);
-        }
-        else
-        {
-            Debug.LogError("Manager reference is missing on " + name + "! Make sure SpawnPlayers calls SetManager().");
-        }
-    }
-    // ---------------------------
-
-    // -----------------------------------
-    // Movement coroutines: (TIDAK BERUBAH)
-    // -----------------------------------
+    // Move per-tile (smooth)
     public IEnumerator MoveToTile(int targetTileID, System.Func<int, Vector3> tilePosProvider)
     {
         int start = currentTileID;
         if (targetTileID == start) yield break;
 
-        // Jika maju
         if (targetTileID > start)
         {
+            // Gerak Maju
             for (int i = start + 1; i <= targetTileID; i++)
             {
                 Vector3 targetPos = tilePosProvider(i);
@@ -116,12 +108,19 @@ public class PlayerPawn : MonoBehaviour
                 }
                 transform.position = targetPos;
                 currentTileID = i;
+
+                // --- LOGIKA ROTASI BARU ---
+                int row = (i - 1) / 10; // (Tile 1-10=row 0), (Tile 11-20=row 1)
+                float targetYAngle = (row % 2 == 0) ? 0f : 180f; // Row ganjil 180, row genap 0
+                yield return StartCoroutine(SmoothRotate(targetYAngle)); // Tunggu rotasi selesai
+                // --------------------------
+
                 yield return new WaitForSeconds(stepDelay);
             }
         }
         else
         {
-            // Jika mundur
+            // Gerak Mundur (Bounce Back)
             for (int i = start - 1; i >= targetTileID; i--)
             {
                 Vector3 targetPos = tilePosProvider(i);
@@ -132,11 +131,19 @@ public class PlayerPawn : MonoBehaviour
                 }
                 transform.position = targetPos;
                 currentTileID = i;
+
+                // --- LOGIKA ROTASI BARU ---
+                int row = (i - 1) / 10;
+                float targetYAngle = (row % 2 == 0) ? 0f : 180f;
+                yield return StartCoroutine(SmoothRotate(targetYAngle));
+                // --------------------------
+
                 yield return new WaitForSeconds(stepDelay);
             }
         }
     }
 
+    // Teleport (used for ladder/snake)
     public IEnumerator TeleportToTile(int targetTileID, System.Func<int, Vector3> tilePosProvider)
     {
         Vector3 targetPos = tilePosProvider(targetTileID);
@@ -148,5 +155,65 @@ public class PlayerPawn : MonoBehaviour
         }
         transform.position = targetPos;
         currentTileID = targetTileID;
+
+        // --- LOGIKA ROTASI BARU (INSTAN) ---
+        // Saat teleport, rotasi langsung di-snap
+        int row = (currentTileID - 1) / 10;
+        float targetYAngle = (row % 2 == 0) ? 0f : 180f;
+        transform.rotation = Quaternion.Euler(0, targetYAngle, 0);
+        // ---------------------------------
+    }
+
+    // --- TAMBAHKAN 2 FUNGSI BARU DI BAWAH INI ---
+
+    /// <summary>
+    /// Coroutine untuk berputar halus ke sudut Y tertentu
+    /// </summary>
+    IEnumerator SmoothRotate(float targetYAngle)
+    {
+        Quaternion targetRotation = Quaternion.Euler(0, targetYAngle, 0);
+
+        // Jika sudah dekat, snap saja
+        if (Quaternion.Angle(transform.rotation, targetRotation) < 1f)
+        {
+            transform.rotation = targetRotation;
+            yield break;
+        }
+
+        Quaternion startRotation = transform.rotation;
+        float duration = Quaternion.Angle(startRotation, targetRotation) / rotationSpeed;
+        float t = 0f;
+
+        while (t < 1.0f)
+        {
+            t += Time.deltaTime / duration;
+            transform.rotation = Quaternion.Slerp(startRotation, targetRotation, t);
+            yield return null;
+        }
+
+        transform.rotation = targetRotation; // Snap ke rotasi final
+    }
+
+    /// <summary>
+    /// Menggerakkan pawn ke posisi offset baru (untuk fix tumpuk)
+    /// </summary>
+    public void MoveToPosition(Vector3 targetPos)
+    {
+        // Hanya gerak jika posisinya memang beda
+        if (Vector3.Distance(transform.position, targetPos) > 0.01f)
+        {
+            StartCoroutine(NudgeToPosition(targetPos));
+        }
+    }
+
+    IEnumerator NudgeToPosition(Vector3 targetPos)
+    {
+        float nudgeSpeed = stepSpeed * 1.5f; // Sedikit lebih cepat
+        while (Vector3.Distance(transform.position, targetPos) > 0.01f)
+        {
+            transform.position = Vector3.MoveTowards(transform.position, targetPos, nudgeSpeed * Time.deltaTime);
+            yield return null;
+        }
+        transform.position = targetPos;
     }
 }
