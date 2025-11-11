@@ -16,7 +16,7 @@ MonoBehaviour:
   description: '"-1 untuk nilai dadu untuk memajukan diri sendiri tapi +2 dadu untuk
     nilai dadu ketika memundurkan player lain'
   cardImage: {fileID: 0}
-  cardType: Double Edge
-  cardTarget: Self, Enemy
+  cardArchetype: 2
+  cardTargetType: 3
   effectType: 6
   intValue: 0

@@ -15,7 +15,7 @@ MonoBehaviour:
   cardName: LokiTricks
   description: Menukar posisi mu dengan pemain target
   cardImage: {fileID: 0}
-  cardType: Buff, DeBuf
-  cardTarget: Self, Enemy
+  cardArchetype: 3
+  cardTargetType: 3
   effectType: 9
   intValue: 0

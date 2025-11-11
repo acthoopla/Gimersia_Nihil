@@ -2958,7 +2958,7 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 919132149155446097, guid: 5133a3457b22f524eb6e5f9dd7e74504, type: 3}
       propertyPath: m_IsActive
-      value: 0
+      value: 1
       objectReference: {fileID: 0}
     m_RemovedComponents: []
     m_RemovedGameObjects: []
@@ -8710,6 +8710,10 @@ MonoBehaviour:
   mainMenuSceneName: MainMenu
   playerUIEntryPrefab: {fileID: 5553500893696183725, guid: fc87dda20683ecf40840534544fd1d2c, type: 3}
   playerUIContainer: {fileID: 44736907}
+  gameOverPanel: {fileID: 0}
+  winnerListText: {fileID: 0}
+  playAgainButton: {fileID: 0}
+  returnToMenuButton_GameOver: {fileID: 0}
   cardDetailPanel: {fileID: 1030572475}
   cardInfoObject: {fileID: 316719119}
   cardNameText: {fileID: 537506052}
@@ -11944,6 +11948,11 @@ MonoBehaviour:
   diceContainmentWall: {fileID: 681824132}
   snakeAnimationHeight: -2
   snakeAnimationSpeed: 3
+  ladderStepPrefab: {fileID: 0}
+  ladderDeployHeight: 10
+  ladderDeploySpeed: 15
+  ladderStepDelay: 0.05
+  ladderVerticalOffset: 0.1
   totalTilesInBoard: 100
   tileOffsetBaseRadius: 0.15
   tileOffsetPerPlayer: 0.05

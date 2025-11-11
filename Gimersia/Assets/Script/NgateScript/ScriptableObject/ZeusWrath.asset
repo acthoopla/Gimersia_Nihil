@@ -15,7 +15,7 @@ MonoBehaviour:
   cardName: ZeusWrath
   description: Pilih 1 pemain, mundurkan 3 blok
   cardImage: {fileID: 0}
-  cardType: Debuff
-  cardTarget: Enemy
+  cardArchetype: 1
+  cardTargetType: 1
   effectType: 5
   intValue: 3

@@ -108,8 +108,8 @@ MonoBehaviour:
   m_fontMaterials: []
   m_fontColor32:
     serializedVersion: 2
-    rgba: 4278219775
-  m_fontColor: {r: 1, g: 0.45249468, b: 0, a: 1}
+    rgba: 4278192662
+  m_fontColor: {r: 0.084905684, g: 0.038290802, b: 0, a: 1}
   m_enableVertexGradient: 0
   m_colorMode: 3
   m_fontColorGradient:
@@ -311,8 +311,8 @@ MonoBehaviour:
   m_fontMaterials: []
   m_fontColor32:
     serializedVersion: 2
-    rgba: 4278216447
-  m_fontColor: {r: 1, g: 0.40000004, b: 0, a: 1}
+    rgba: 4278192662
+  m_fontColor: {r: 0.08627451, g: 0.039215688, b: 0, a: 1}
   m_enableVertexGradient: 0
   m_colorMode: 3
   m_fontColorGradient:
@@ -452,6 +452,17 @@ MonoBehaviour:
   stepSpeed: 5
   stepDelay: 0.08
   rotationSpeed: 360
+  heldCards: []
+  immuneToReverseCycles: 0
+  immuneToSnakeUses: 0
+  nextRollModifier: 0
+  extraDiceRolls: 0
+  hasAresProvocation: 0
+  skipTurns: 0
+  immuneToAllNegativeTurns: 0
+  hasAmaterasuRadiance: 0
+  getsExtraTurn: 0
+  drawCardNextTurn: 0
   wasReversedThisCycle: 0
 --- !u!1001 &7055115904973731849
 PrefabInstance:

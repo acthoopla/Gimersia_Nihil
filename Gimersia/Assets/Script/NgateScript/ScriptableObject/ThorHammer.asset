@@ -15,7 +15,7 @@ MonoBehaviour:
   cardName: ThorHammer
   description: Memundurkan pemain didepanmu 2 tile
   cardImage: {fileID: 0}
-  cardType: Debuff
-  cardTarget: Enemy
+  cardArchetype: 1
+  cardTargetType: 1
   effectType: 8
   intValue: 2

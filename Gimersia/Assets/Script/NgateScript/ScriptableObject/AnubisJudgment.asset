@@ -15,7 +15,7 @@ MonoBehaviour:
   cardName: AnubisJudgment
   description: Memilih 1 pemain untuk di hilangkan turn nya satu kali
   cardImage: {fileID: 0}
-  cardType: Debuff
-  cardTarget: Enemy
+  cardArchetype: 1
+  cardTargetType: 1
   effectType: 11
   intValue: 1

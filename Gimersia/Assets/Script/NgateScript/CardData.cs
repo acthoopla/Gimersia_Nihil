@@ -1,39 +1,30 @@
 using UnityEngine;
 using UnityEngine.UI;
 
-public enum CardEffectType
-{
-    None,
-    AthenaBlessing,  // Memberikan perlindungan dari dimundurkan 2 cycle
-    ShieldOfAthena,  // Imune efek snake 1 kali
-    HermesFavors,    // +2 pada nilai roll berikutnya
-    PoseidonWaves,   // Mendorong seluruh bidak di row
-    ZeusWrath,       // Pilih 1 pemain, mundurkan 3 blok
-    AresProvocation, // -1 dadu sendiri, +2 dadu memundurkan lawan
-    OdinWisdom,      // +1 dadu untuk roll berikutnya
-    ThorHammer,      // Memundurkan pemain didepanmu 2 tile
-    LokiTricks,      // Menukar posisi mu dengan pemain target
-    RaLight,         // Maju 2 blok ke depan
-    AnubisJudgment,   // Memilih 1 pemain untuk di hilangkan turn nya satu kali
-    IsisProtection,    // Blok efek negatif selama 2 giliran
-    AmaterasuRadiance,   // Dapat turn ekstra setelah menggunakan tangga
-    SusanooStorm, // semua pemain didepan mu dimundurkan 1 tile
-    InariFortune  // Turn selanjutnya +1 langkah dan draw 1 kartu baru
-}
+// Enum dari file CardEnums.cs
+// public enum CardEffectType { ... }
+// public enum CardArchetype { ... }
+// public enum CardTargetType { ... }
+
 
 // Ini memungkinkan Anda membuat "aset" kartu baru dari menu Create di Unity
 [CreateAssetMenu(fileName = "New Card", menuName = "Game/Card")]
 public class CardData : ScriptableObject
 {
+    [Header("Info Dasar")]
     public string cardName;
     [TextArea(3, 10)]
     public string description;
     public Sprite cardImage;
 
-    [Tooltip("Hanya untuk kosmetik/UI")]
-    public string cardType; // "Buff", "DeBuff", "Double Edge"
-    [Tooltip("Hanya untuk kosmetik/UI")]
-    public string cardTarget; // "Self", "Enemy", "Row"
+    // --- PERUBAHAN DI SINI ---
+    [Header("Tag Kosmetik (UI)")]
+    [Tooltip("Tipe kartu (Buff, DeBuff, dll.)")]
+    public CardArchetype cardArchetype; // <-- MENGGANTIKAN string cardType
+
+    [Tooltip("Target utama kartu (Self, Enemy, dll.)")]
+    public CardTargetType cardTargetType; // <-- MENGGANTIKAN string cardTarget
+    // -------------------------
 
     [Header("Effect Logic")]
     [Tooltip("Ini yang menentukan logika kartu")]

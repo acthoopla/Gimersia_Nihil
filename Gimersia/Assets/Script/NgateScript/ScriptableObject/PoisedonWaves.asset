@@ -16,7 +16,7 @@ MonoBehaviour:
   description: Mendorong seluruh bidak yang berada di row yang dipilih sejauh dua
     blok, bisa dipilih maju atau mundur
   cardImage: {fileID: 0}
-  cardType: Double Edge
-  cardTarget: Enemies, Self, Row
+  cardArchetype: 2
+  cardTargetType: 3
   effectType: 4
   intValue: 2

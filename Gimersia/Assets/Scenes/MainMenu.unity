@@ -759,7 +759,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 872982389ac86f34babdd628b328643b, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  gameSceneName: Visual
+  gameSceneName: Visual 1
   mainMenuPanel: {fileID: 839092304}
   settingsPanel: {fileID: 631373263}
   creditPanel: {fileID: 303802331}
