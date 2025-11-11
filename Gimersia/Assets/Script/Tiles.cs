@@ -1,9 +1,9 @@
 using UnityEngine;
 using TMPro;
-using System.Linq; // <-- PENTING
-using System.Collections.Generic; // <-- PENTING
+using System.Linq;
+using System.Collections.Generic;
 
-// DIUBAH: Menambahkan tipe PATH secara spesifik
+// Enum (tidak berubah)
 public enum TileType
 {
     Normal,
@@ -12,9 +12,9 @@ public enum TileType
     SnakeEnd,
     LadderEnd,
     BlessingCard,
-    SnakePathStraight, // <-- BARU
-    SnakePathBend1,    // <-- BARU
-    SnakePathBend2     // <-- BARU
+    SnakePathStraight,
+    SnakePathBend1,
+    SnakePathBend2
 }
 
 public class Tiles : MonoBehaviour
@@ -29,7 +29,13 @@ public class Tiles : MonoBehaviour
     [Header("Logika Ular/Tangga")]
     public Tiles targetTile; // Hanya diisi di 'SnakeStart' atau 'LadderStart'
 
-    // Slot-slot ini akan diisi oleh 'AutoAssignModels'
+    // DIHAPUS: List Waypoint sudah tidak diperlukan lagi
+    // public List<Tiles> snakeWaypoints;
+
+    [Header("Visual Models (Wadah)")]
+    [Tooltip("Tarik Child 'PathContainer' ke sini. Ini akan dirotasi.")]
+    public Transform pathContainer;
+
     [Header("Visual Models (Child Objects)")]
     public GameObject normalModel;
     public GameObject snakeStartModel;
@@ -47,13 +53,13 @@ public class Tiles : MonoBehaviour
     [Header("Visual Models (Spesial)")]
     public GameObject blessingCardModel;
 
-    // Variabel pelacak untuk OnValidate
     [SerializeField, HideInInspector]
     private Tiles lastKnownTarget;
     [SerializeField, HideInInspector]
     private TileType lastKnownType;
     [SerializeField, HideInInspector]
     private int lastKnownTileID = -1;
+
 
     void Start()
     {
@@ -64,17 +70,15 @@ public class Tiles : MonoBehaviour
         lastKnownTileID = tileID;
     }
 
-    // OnValidate sekarang HANYA menangani update visual & target
+    // OnValidate akan menangani SEMUA logika
     void OnValidate()
     {
-        // Auto-assign model JIKA ID BERUBAH
         if (tileID != lastKnownTileID && tileID > 0)
         {
             AutoAssignModels();
             lastKnownTileID = tileID;
         }
 
-        // Auto-set Tipe End-tile
         if (type != lastKnownType || targetTile != lastKnownTarget)
         {
             if (lastKnownTarget != null && lastKnownTarget != targetTile)
@@ -102,135 +106,22 @@ public class Tiles : MonoBehaviour
             if (targetTile != null) targetTile = null;
         }
 
+        // Selalu panggil fungsi ini di akhir
         UpdateVisualModel();
         UpdateTileNumber();
     }
 
-    /// <summary>
-    /// Fungsi publik untuk mengubah tipe tile ini (dipanggil oleh tile lain)
-    /// </summary>
     public void SetType(TileType newType, bool fromScript = false)
     {
         type = newType;
         UpdateVisualModel();
-
-        // Mencegah 'OnValidate' berjalan berulang-ulang
         if (fromScript)
         {
             lastKnownType = type;
         }
     }
 
-    // --- LOGIKA "AJAIB" ADA DI BAWAH INI ---
-
-    /// <summary>
-    /// (Dipanggil oleh Tombol di Inspector) Membuat jalur ular otomatis
-    /// </summary>
-    public void GenerateSnakePath()
-    {
-        if (type != TileType.SnakeStart || targetTile == null)
-        {
-            Debug.LogError("Hanya bisa generate dari tile 'SnakeStart' yang punya 'Target Tile'!");
-            return;
-        }
-
-        Debug.Log($"--- Mulai Generate Jalur Ular dari {tileID} ke {targetTile.tileID} ---");
-
-        // 1. Buat Peta semua tile
-        Dictionary<int, Tiles> map = FindObjectsOfType<Tiles>().ToDictionary(t => t.tileID, t => t);
-
-        // 2. Loop dari tile SEBELUM kepala, sampai tile SETELAH ekor
-        for (int i = this.tileID - 1; i > targetTile.tileID; i--)
-        {
-            if (!map.ContainsKey(i) || !map.ContainsKey(i + 1) || !map.ContainsKey(i - 1))
-            {
-                Debug.LogWarning($"Melewatkan tile {i}, ID tidak ditemukan di map.");
-                continue;
-            }
-
-            Tiles tile_curr = map[i];
-            Tiles tile_prev = map[i + 1]; // Tile sebelumnya (ID lebih besar)
-            Tiles tile_next = map[i - 1]; // Tile berikutnya (ID lebih kecil)
-
-            // 3. Ambil posisi X,Z (mengabaikan Y)
-            Vector2 pos_curr = new Vector2(tile_curr.transform.position.x, tile_curr.transform.position.z);
-            Vector2 pos_prev = new Vector2(tile_prev.transform.position.x, tile_prev.transform.position.z);
-            Vector2 pos_next = new Vector2(tile_next.transform.position.x, tile_next.transform.position.z);
-
-            // 4. Hitung vektor arah
-            Vector2 dir_in = (pos_curr - pos_prev).normalized; // Arah dari tile sebelumnya
-            Vector2 dir_out = (pos_next - pos_curr).normalized; // Arah ke tile berikutnya
-
-            // 5. Tentukan Lurus atau Belok
-            float dot = Vector2.Dot(dir_in, dir_out);
-            float angleY = 0;
-
-            if (dot > 0.9f) // Lurus
-            {
-                tile_curr.SetType(TileType.SnakePathStraight, true);
-                // Rotasi = menghadap ke arah keluar (dir_out)
-                angleY = Mathf.Atan2(dir_out.x, dir_out.y) * Mathf.Rad2Deg;
-                tile_curr.transform.rotation = Quaternion.Euler(0, angleY, 0);
-            }
-            else // Belok
-            {
-                // Rotasi = menghadap ke arah masuk (dir_in)
-                angleY = Mathf.Atan2(dir_in.x, dir_in.y) * Mathf.Rad2Deg;
-                tile_curr.transform.rotation = Quaternion.Euler(0, angleY, 0);
-
-                // Tentukan Belok Kiri atau Kanan
-                // Kita gunakan SignedAngle
-                float turnAngle = Vector2.SignedAngle(dir_in, dir_out);
-
-                if (turnAngle > 0) // Belok Kanan (Clockwise)
-                {
-                    tile_curr.SetType(TileType.SnakePathBend2, true); // Asumsi _2 adalah belok kanan
-                }
-                else // Belok Kiri (Counter-Clockwise)
-                {
-                    tile_curr.SetType(TileType.SnakePathBend1, true); // Asumsi _1 adalah belok kiri
-                }
-            }
-
-            Debug.Log($"Tile {i}: Lurus? {dot > 0.9f}. Rotasi: {angleY}. Tipe: {tile_curr.type}");
-        }
-
-        Debug.Log("--- Generate Jalur Ular Selesai ---");
-    }
-
-    /// <summary>
-    /// (Dipanggil oleh Tombol di Inspector) Menghapus jalur ular
-    /// </summary>
-    public void ClearSnakePath()
-    {
-        if (type != TileType.SnakeStart || targetTile == null)
-        {
-            Debug.LogError("Hanya bisa clear dari tile 'SnakeStart' yang punya 'Target Tile'!");
-            return;
-        }
-
-        Dictionary<int, Tiles> map = FindObjectsOfType<Tiles>().ToDictionary(t => t.tileID, t => t);
-
-        for (int i = this.tileID - 1; i > targetTile.tileID; i--)
-        {
-            if (map.ContainsKey(i))
-            {
-                Tiles tile_curr = map[i];
-                // Hanya reset jika itu adalah bagian dari jalur
-                if (tile_curr.type == TileType.SnakePathStraight ||
-                   tile_curr.type == TileType.SnakePathBend1 ||
-                   tile_curr.type == TileType.SnakePathBend2)
-                {
-                    tile_curr.SetType(TileType.Normal, true);
-                    tile_curr.transform.rotation = Quaternion.identity;
-                }
-            }
-        }
-        Debug.Log($"Jalur ular dari {tileID} ke {targetTile.tileID} dibersihkan.");
-    }
-
-
-    // --- Sisa Script (Tidak berubah dari sebelumnya) ---
+    // DIHAPUS: Fungsi GenerateSnakePath(), ClearSnakePath(), RoundVectorToGrid()
 
     [ContextMenu("Auto-Assign Child Models")]
     void AutoAssignModels()
@@ -238,26 +129,42 @@ public class Tiles : MonoBehaviour
         if (tileID <= 0) return;
         string theme = (tileID % 2 != 0) ? "Emas" : "Putih";
 
-        normalModel = FindChildModel("Tile_" + theme);
-        snakeStartModel = FindChildModel("Tile_Snake");
-        ladderStartModel = FindChildModel("Tile_Tangga" + theme);
-        snakeEndModel = FindChildModel("Tile_Buntut" + theme);
-        ladderEndModel = FindChildModel("Tile_Tangga" + theme);
-        snakePathStraightModel = FindChildModel("Tile_JalurBuntutLurus" + theme);
-        snakePathBendModel1 = FindChildModel("Tile_JalurBuntutBelok" + theme + "_1");
-        snakePathBendModel2 = FindChildModel("Tile_JalurBuntutBelok" + theme + "_2");
-        blessingCardModel = FindChildModel("Tile_" + theme + "Coak");
-
+        // 1. Temukan Wadah Utama (Container)
         Transform textChild = transform.Find("Text (TMP)");
         if (textChild != null)
         {
             tileNumberText = textChild.GetComponent<TextMeshPro>();
         }
+
+        Transform containerChild = transform.Find("PathContainer");
+        if (containerChild != null)
+        {
+            pathContainer = containerChild;
+        }
+        else
+        {
+            Debug.LogError($"AutoAssign GAGAL: Tidak menemukan 'PathContainer' di {gameObject.name}. ", gameObject);
+            return;
+        }
+
+        // 2. Temukan Model Non-Jalur (Child langsung dari 'transform')
+        normalModel = FindChildModel(transform, "Tile_" + theme);
+        snakeStartModel = FindChildModel(transform, "Tile_Snake");
+        ladderStartModel = FindChildModel(transform, "Tile_Tangga" + theme);
+        snakeEndModel = FindChildModel(transform, "Tile_Buntut" + theme);
+        ladderEndModel = FindChildModel(transform, "Tile_Tangga" + theme);
+        blessingCardModel = FindChildModel(transform, "Tile_" + theme + "Coak");
+
+        // 3. Temukan Model Jalur (Child dari 'pathContainer')
+        snakePathStraightModel = FindChildModel(pathContainer, "Tile_JalurBuntutLurus" + theme);
+        snakePathBendModel1 = FindChildModel(pathContainer, "Tile_JalurBuntutBelok" + theme + "_1");
+        snakePathBendModel2 = FindChildModel(pathContainer, "Tile_JalurBuntutBelok" + theme + "_2");
     }
 
-    GameObject FindChildModel(string childName)
+    GameObject FindChildModel(Transform parentToSearch, string childName)
     {
-        Transform child = transform.Find(childName);
+        if (parentToSearch == null) return null;
+        Transform child = parentToSearch.Find(childName);
         return (child != null) ? child.gameObject : null;
     }
 
@@ -269,8 +176,10 @@ public class Tiles : MonoBehaviour
         }
     }
 
+    // DIUBAH: Fungsi ini sekarang juga meng-handle rotasi
     void UpdateVisualModel()
     {
+        // 1. Matikan SEMUA model
         if (normalModel != null) normalModel.SetActive(false);
         if (snakeStartModel != null) snakeStartModel.SetActive(false);
         if (ladderStartModel != null) ladderStartModel.SetActive(false);
@@ -281,6 +190,34 @@ public class Tiles : MonoBehaviour
         if (snakePathBendModel1 != null) snakePathBendModel1.SetActive(false);
         if (snakePathBendModel2 != null) snakePathBendModel2.SetActive(false);
 
+        // --- INI LOGIKA ROTASI YANG DIPERBAIKI ---
+        if (pathContainer != null)
+        {
+            // Cek apakah Tipe-nya adalah salah satu dari tipe jalur
+            bool isPath = (type == TileType.SnakePathStraight ||
+                           type == TileType.SnakePathBend1 ||
+                           type == TileType.SnakePathBend2);
+
+            if (isPath)
+            {
+                // JIKA JALUR:
+                // Cek apakah parent-nya punya rotasi (artinya user baru saja memutarnya)
+                if (transform.localRotation != Quaternion.identity)
+                {
+                    Quaternion newRot = transform.localRotation; // 1. Simpan rotasi parent
+                    transform.localRotation = Quaternion.identity; // 2. Reset rotasi parent (agar nomor lurus)
+                    pathContainer.localRotation = newRot; // 3. Terapkan rotasi ke container
+                }
+            }
+            else
+            {
+                // JIKA BUKAN JALUR: Reset rotasi container
+                pathContainer.localRotation = Quaternion.identity;
+            }
+        }
+        // ----------------------------------------
+
+        // 2. Aktifkan yang benar (logika ini tidak berubah)
         switch (type)
         {
             case TileType.Normal:
