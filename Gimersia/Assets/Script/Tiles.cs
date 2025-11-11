@@ -27,13 +27,10 @@ public class Tiles : MonoBehaviour
     public TextMeshPro tileNumberText;
 
     [Header("Logika Ular/Tangga")]
-    public Tiles targetTile; // Hanya diisi di 'SnakeStart' atau 'LadderStart'
+    public Tiles targetTile;
 
-    // DIHAPUS: List Waypoint sudah tidak diperlukan lagi
-    // public List<Tiles> snakeWaypoints;
 
     [Header("Visual Models (Wadah)")]
-    [Tooltip("Tarik Child 'PathContainer' ke sini. Ini akan dirotasi.")]
     public Transform pathContainer;
 
     [Header("Visual Models (Child Objects)")]
@@ -60,6 +57,15 @@ public class Tiles : MonoBehaviour
     [SerializeField, HideInInspector]
     private int lastKnownTileID = -1;
 
+    // --- PERUBAHAN DI SINI ---
+    private Vector3 originalPosition; // Variabel baru untuk menyimpan posisi asli
+
+    void Awake() // <-- Gunakan Awake()
+    {
+        // Simpan posisi asli SEBELUM OnValidate/Start mengaturnya
+        originalPosition = transform.position;
+    }
+    // -------------------------
 
     void Start()
     {
@@ -70,9 +76,15 @@ public class Tiles : MonoBehaviour
         lastKnownTileID = tileID;
     }
 
-    // OnValidate akan menangani SEMUA logika
     void OnValidate()
     {
+        // (Logika OnValidate... tidak berubah)
+        #region OnValidate Logic
+        if (transform.localRotation != Quaternion.identity)
+        {
+            transform.localRotation = Quaternion.identity;
+        }
+
         if (tileID != lastKnownTileID && tileID > 0)
         {
             AutoAssignModels();
@@ -106,30 +118,44 @@ public class Tiles : MonoBehaviour
             if (targetTile != null) targetTile = null;
         }
 
-        // Selalu panggil fungsi ini di akhir
         UpdateVisualModel();
         UpdateTileNumber();
+        #endregion
     }
 
     public void SetType(TileType newType, bool fromScript = false)
     {
+        // (Tidak berubah)
+        #region SetType Logic
         type = newType;
         UpdateVisualModel();
         if (fromScript)
         {
             lastKnownType = type;
         }
+        #endregion
     }
 
-    // DIHAPUS: Fungsi GenerateSnakePath(), ClearSnakePath(), RoundVectorToGrid()
-
+    
+    Vector2 RoundVectorToGrid(Vector2 v)
+    {
+        v.Normalize();
+        if (Mathf.Abs(v.x) > Mathf.Abs(v.y))
+        {
+            return new Vector2(Mathf.Sign(v.x), 0);
+        }
+        else
+        {
+            return new Vector2(0, Mathf.Sign(v.y));
+        }
+    }
+   
     [ContextMenu("Auto-Assign Child Models")]
     void AutoAssignModels()
     {
         if (tileID <= 0) return;
         string theme = (tileID % 2 != 0) ? "Emas" : "Putih";
 
-        // 1. Temukan Wadah Utama (Container)
         Transform textChild = transform.Find("Text (TMP)");
         if (textChild != null)
         {
@@ -147,7 +173,6 @@ public class Tiles : MonoBehaviour
             return;
         }
 
-        // 2. Temukan Model Non-Jalur (Child langsung dari 'transform')
         normalModel = FindChildModel(transform, "Tile_" + theme);
         snakeStartModel = FindChildModel(transform, "Tile_Snake");
         ladderStartModel = FindChildModel(transform, "Tile_Tangga" + theme);
@@ -155,7 +180,6 @@ public class Tiles : MonoBehaviour
         ladderEndModel = FindChildModel(transform, "Tile_Tangga" + theme);
         blessingCardModel = FindChildModel(transform, "Tile_" + theme + "Coak");
 
-        // 3. Temukan Model Jalur (Child dari 'pathContainer')
         snakePathStraightModel = FindChildModel(pathContainer, "Tile_JalurBuntutLurus" + theme);
         snakePathBendModel1 = FindChildModel(pathContainer, "Tile_JalurBuntutBelok" + theme + "_1");
         snakePathBendModel2 = FindChildModel(pathContainer, "Tile_JalurBuntutBelok" + theme + "_2");
@@ -176,10 +200,8 @@ public class Tiles : MonoBehaviour
         }
     }
 
-    // DIUBAH: Fungsi ini sekarang juga meng-handle rotasi
     void UpdateVisualModel()
     {
-        // 1. Matikan SEMUA model
         if (normalModel != null) normalModel.SetActive(false);
         if (snakeStartModel != null) snakeStartModel.SetActive(false);
         if (ladderStartModel != null) ladderStartModel.SetActive(false);
@@ -190,34 +212,25 @@ public class Tiles : MonoBehaviour
         if (snakePathBendModel1 != null) snakePathBendModel1.SetActive(false);
         if (snakePathBendModel2 != null) snakePathBendModel2.SetActive(false);
 
-        // --- INI LOGIKA ROTASI YANG DIPERBAIKI ---
         if (pathContainer != null)
         {
-            // Cek apakah Tipe-nya adalah salah satu dari tipe jalur
             bool isPath = (type == TileType.SnakePathStraight ||
                            type == TileType.SnakePathBend1 ||
                            type == TileType.SnakePathBend2);
-
             if (isPath)
             {
-                // JIKA JALUR:
-                // Cek apakah parent-nya punya rotasi (artinya user baru saja memutarnya)
                 if (transform.localRotation != Quaternion.identity)
                 {
-                    Quaternion newRot = transform.localRotation; // 1. Simpan rotasi parent
-                    transform.localRotation = Quaternion.identity; // 2. Reset rotasi parent (agar nomor lurus)
-                    pathContainer.localRotation = newRot; // 3. Terapkan rotasi ke container
+                    pathContainer.localRotation = transform.localRotation;
+                    transform.localRotation = Quaternion.identity;
                 }
             }
             else
             {
-                // JIKA BUKAN JALUR: Reset rotasi container
                 pathContainer.localRotation = Quaternion.identity;
             }
         }
-        // ----------------------------------------
 
-        // 2. Aktifkan yang benar (logika ini tidak berubah)
         switch (type)
         {
             case TileType.Normal:
@@ -249,11 +262,20 @@ public class Tiles : MonoBehaviour
                 break;
         }
     }
+    
 
+    // --- PERUBAHAN DI SINI ---
+    /// <summary>
+    /// Memberikan posisi di mana pemain harus berdiri di atas tile ini.
+    /// (DIUBAH: Sekarang menggunakan originalPosition)
+    /// </summary>
     public Vector3 GetPlayerPosition()
     {
-        return transform.position + Vector3.up * 0.5f;
+        // Menggunakan 'originalPosition' AGAR STABIL
+        // dan tidak terpengaruh animasi turun
+        return originalPosition + Vector3.up * 0.5f;
     }
+    // -------------------------
 
     #region Gizmos
     void OnDrawGizmos()
