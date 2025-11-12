@@ -72,6 +72,7 @@ public class MultiplayerManager : MonoBehaviour
     private int currentTurnIdx = 0;
     private bool isActionRunning = false;
     public bool IsActionRunning => isActionRunning;
+    public bool IsInSetupPhase => orderPanel != null && orderPanel.activeSelf;
     private bool isSpawning = false;
     private int currentCycle = 1;
     private bool awaitingTargetSelection = false;
@@ -81,6 +82,7 @@ public class MultiplayerManager : MonoBehaviour
     private bool isInReverseMode = false;
     private PlayerPawn playerWaitingForCard;
     private List<PlayerPawn> winners = new List<PlayerPawn>();
+    private bool hasUsedCardThisTurn = false;
     #endregion
 
     #region Unity Callbacks & Setup
@@ -676,6 +678,8 @@ public class MultiplayerManager : MonoBehaviour
         if (physicalDice != null) physicalDice.ResetDice();
         if (turnOrder.Count == 0) return;
 
+        hasUsedCardThisTurn = false;
+
         PlayerPawn cur = turnOrder[currentTurnIdx];
 
         if (winners.Contains(cur))
@@ -887,11 +891,19 @@ public class MultiplayerManager : MonoBehaviour
     }
     public void UseCard(CardData card)
     {
+        if (hasUsedCardThisTurn)
+        {
+            if (uiManager != null) uiManager.SetActionText("Kamu sudah menggunakan kartu di giliran ini!");
+            return;
+        }
         if (isActionRunning)
         {
             if (uiManager != null) uiManager.SetActionText("Tidak bisa menggunakan kartu saat aksi berjalan.");
             return;
         }
+
+        hasUsedCardThisTurn = true;
+
         PlayerPawn user = turnOrder[currentTurnIdx];
         PlayerCardInstance cardInstance = user.heldCards.FirstOrDefault(c => c.cardData == card);
         if (cardInstance != null)
@@ -900,6 +912,11 @@ public class MultiplayerManager : MonoBehaviour
         }
         else
         {
+            // --- TAMBAHKAN LOG INI ---
+            Debug.Log($"[MultiplayerManager] UseCard dipanggil untuk: {(card != null ? card.cardName : "KARTU NULL")}");
+            Debug.Log($"[MultiplayerManager] Mengecek 'turnOrder'. Apakah 'turnOrder' null? {turnOrder == null}");
+            Debug.Log($"[MultiplayerManager] Mengecek 'currentTurnIdx'. Nilainya: {currentTurnIdx}");
+            // -------------------------
             Debug.LogWarning($"Pemain {user.name} mencoba menggunakan {card.name} tapi tidak ditemukan!");
             return;
         }
@@ -908,6 +925,7 @@ public class MultiplayerManager : MonoBehaviour
             uiManager.DisplayPlayerHand(user);
         }
         Debug.Log(user.name + " menggunakan kartu: " + card.cardName);
+        
         switch (card.effectType)
         {
             case CardEffectType.AthenaBlessing:

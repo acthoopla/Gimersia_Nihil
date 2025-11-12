@@ -62,7 +62,7 @@ public class UIManager : MonoBehaviour
     public Transform choiceContainer;
 
     [Header("Tampilan Tangan Pemain")]
-    // ... (tidak berubah)
+    public Transform popupContainer; // <-- TAMBAHKAN INI
     public GameObject cardDisplayPrefab;
     public Transform handContainer;
 
@@ -93,8 +93,8 @@ public class UIManager : MonoBehaviour
         // if (gameLogPanel != null) gameLogPanel.SetActive(true); // Langsung nyala
         // -------------------------
 
-        // Tombol Kartu
-        if (closeDetailButton != null) closeDetailButton.onClick.AddListener(OnCloseDetailPressed);
+        //// Tombol Kartu
+        //if (closeDetailButton != null) closeDetailButton.onClick.AddListener(OnCloseDetailPressed);
         if (useCardButton != null) useCardButton.onClick.AddListener(OnUseCardPressed);
         if (confirmChoiceButton != null) confirmChoiceButton.onClick.AddListener(OnConfirmCardChoicePressed);
 
@@ -166,11 +166,19 @@ public class UIManager : MonoBehaviour
 
     // (Sisa script tidak berubah)
     #region Card Logic Functions
-    private void OnCloseDetailPressed()
-    {
-        cardDetailPanel.SetActive(false);
-        currentlyShownCard = null;
-    }
+    //private void OnCloseDetailPressed()
+    //{
+    //    cardDetailPanel.SetActive(false);
+
+    //    // --- TAMBAHKAN BARIS INI ---
+    //    if (CardDisplay.currentlySelectedCard != null)
+    //    {
+    //        CardDisplay.currentlySelectedCard.Deselect();
+    //    }
+    //    // --- AKHIR TAMBAHAN ---
+
+    //    currentlyShownCard = null;
+    //}
 
     private void OnUseCardPressed()
     {
@@ -180,6 +188,30 @@ public class UIManager : MonoBehaviour
             cardDetailPanel.SetActive(false);
             currentlyShownCard = null;
         }
+    }
+
+    // Fungsi baru untuk menangani pilihan kartu secara langsung
+    public void OnCardChoiceSelected(CardData chosenCard)
+    {
+        if (MultiplayerManager.Instance == null) return;
+
+        // 1. Langsung tambahkan kartu ke pemain
+        MultiplayerManager.Instance.AddChosenCardToPlayer(chosenCard);
+
+        // 2. Tutup panel pilihan kartu
+        if (cardChoicePanel != null)
+            cardChoicePanel.SetActive(false);
+
+        ClearChoicePrefabs();
+
+        // 3. Tampilkan kembali UI tangan pemain
+        if (handContainer != null)
+        {
+            handContainer.gameObject.SetActive(true);
+        }
+
+        // 4. (Opsional) Log ke UI
+        SetActionText($"{MultiplayerManager.Instance.GetCurrentPlayer().name} mengambil kartu {chosenCard.cardName}.");
     }
 
     private void OnConfirmCardChoicePressed()
@@ -279,13 +311,31 @@ public class UIManager : MonoBehaviour
             Destroy(cardObj);
         }
         currentHandObjects.Clear();
+
         if (player == null) return;
         if (cardDisplayPrefab == null) return;
         if (handContainer == null) return;
+
         foreach (PlayerCardInstance cardInstance in player.heldCards)
         {
+            // --- TAMBAHKAN PENJAGA INI ---
+            if (cardInstance == null || cardInstance.cardData == null)
+            {
+                Debug.LogWarning("DisplayPlayerHand: Melewatkan 1 kartu karena datanya null.");
+                continue; // Lanjut ke kartu berikutnya
+            }
+            // --- AKHIR PENJAGA ---
+
+            // Langsung instantiate CardHandPrefab ke handContainer
             GameObject newCard = Instantiate(cardDisplayPrefab, handContainer);
-            newCard.GetComponent<CardDisplay>().Setup(cardInstance.cardData);
+
+            CardDisplay cardDisplayScript = newCard.GetComponent<CardDisplay>();
+            if (cardDisplayScript != null)
+            {
+                // Sekarang kita 100% yakin cardInstance.cardData tidak null
+                cardDisplayScript.Setup(cardInstance.cardData);
+            }
+
             currentHandObjects.Add(newCard);
         }
     }
@@ -299,7 +349,7 @@ public class UIManager : MonoBehaviour
         currentHandObjects.Clear();
         if (currentContext == DetailPanelContext.ViewingHand)
         {
-            OnCloseDetailPressed();
+            //OnCloseDetailPressed();
         }
     }
     #endregion
@@ -317,6 +367,7 @@ public class UIManager : MonoBehaviour
             Destroy(child.gameObject);
         }
         uiEntries.Clear();
+
         foreach (PlayerPawn player in playerTurnOrder)
         {
             GameObject entryGO = Instantiate(playerUIEntryPrefab, playerUIContainer);
@@ -324,6 +375,7 @@ public class UIManager : MonoBehaviour
             if (entryScript != null)
             {
                 entryScript.Setup(player.name);
+                entryScript.SetActive(false); // <-- TAMBAHKAN BARIS INI
                 uiEntries.Add(entryScript);
             }
         }

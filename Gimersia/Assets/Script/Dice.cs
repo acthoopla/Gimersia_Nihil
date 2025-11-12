@@ -85,7 +85,7 @@ public class Dice : MonoBehaviour
 
     void OnMouseDown()
     {
-        if (manager != null && manager.IsActionRunning) return;
+        if (manager != null && (manager.IsActionRunning || manager.IsInSetupPhase)) return;
         if (rb.IsSleeping() || rb.velocity.magnitude < 0.1f)
         {
             if (manager != null)

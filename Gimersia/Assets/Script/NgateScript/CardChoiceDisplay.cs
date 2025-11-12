@@ -31,7 +31,9 @@ public class CardChoiceDisplay : MonoBehaviour
     {
         if (myCard != null && uiManager != null)
         {
-            uiManager.ShowChoiceCardDetails(myCard);
+            // DIUBAH: Langsung panggil fungsi baru di UIManager,
+            // bukan lagi ShowChoiceCardDetails
+            uiManager.OnCardChoiceSelected(myCard);
         }
     }
 }
