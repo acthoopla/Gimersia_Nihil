@@ -90,7 +90,7 @@ public class UIManager : MonoBehaviour
         if (gameOverPanel != null) gameOverPanel.SetActive(false);
 
         // --- PERUBAHAN DI SINI ---
-        if (gameLogPanel != null) gameLogPanel.SetActive(true); // Langsung nyala
+        // if (gameLogPanel != null) gameLogPanel.SetActive(true); // Langsung nyala
         // -------------------------
 
         // Tombol Kartu
@@ -260,7 +260,11 @@ public class UIManager : MonoBehaviour
     public void UpdateCycle(int count)
     {
         if (cycleText != null)
-            cycleText.text = "Cycle : " + count;
+        {
+            string cycle = "";
+            cycle = count > 1 ? "Cycles" : "Cycle";
+            cycleText.text = $"{cycle} {count}";
+        }
     }
 
     public void DisplayPlayerHand(PlayerPawn player)

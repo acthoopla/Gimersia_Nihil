@@ -12,9 +12,9 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 71c1514a6bd24e1e882cebbe1904ce04, type: 3}
   m_Name: joane-bold-italic SDF
   m_EditorClassIdentifier: 
-  hashCode: 0
+  hashCode: -384860351
   material: {fileID: 3495287570131476246}
-  materialHashCode: 0
+  materialHashCode: 1654166721
   m_Version: 1.1.0
   m_SourceFontFileGUID: bf11b7a04befc5641a3a13452a4e1892
   m_SourceFontFile_EditorRef: {fileID: 12800000, guid: bf11b7a04befc5641a3a13452a4e1892, type: 3}
@@ -2720,9 +2720,9 @@ Material:
     - _OutlineWidth: 0
     - _PerspectiveFilter: 0.875
     - _Reflectivity: 10
-    - _ScaleRatioA: 1
-    - _ScaleRatioB: 1
-    - _ScaleRatioC: 1
+    - _ScaleRatioA: 0.96153843
+    - _ScaleRatioB: 0.78125
+    - _ScaleRatioC: 0.78125
     - _ScaleX: 1
     - _ScaleY: 1
     - _ShaderFlags: 0

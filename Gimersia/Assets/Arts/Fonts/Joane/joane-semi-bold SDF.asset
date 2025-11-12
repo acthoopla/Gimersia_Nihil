@@ -73,9 +73,9 @@ Material:
     - _OutlineWidth: 0
     - _PerspectiveFilter: 0.875
     - _Reflectivity: 10
-    - _ScaleRatioA: 1
-    - _ScaleRatioB: 1
-    - _ScaleRatioC: 1
+    - _ScaleRatioA: 0.96153843
+    - _ScaleRatioB: 0.78125
+    - _ScaleRatioC: 0.78125
     - _ScaleX: 1
     - _ScaleY: 1
     - _ShaderFlags: 0
@@ -120,9 +120,9 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 71c1514a6bd24e1e882cebbe1904ce04, type: 3}
   m_Name: joane-semi-bold SDF
   m_EditorClassIdentifier: 
-  hashCode: 0
+  hashCode: -210937399
   material: {fileID: -1573322462168520010}
-  materialHashCode: 0
+  materialHashCode: 1656390217
   m_Version: 1.1.0
   m_SourceFontFileGUID: e8f0201e28a58d544a434efa91a9ba18
   m_SourceFontFile_EditorRef: {fileID: 12800000, guid: e8f0201e28a58d544a434efa91a9ba18, type: 3}

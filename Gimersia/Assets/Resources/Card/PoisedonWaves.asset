@@ -1,0 +1,22 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: ba7d9a9ee5f1fe44fa9447a1256379da, type: 3}
+  m_Name: PoisedonWaves
+  m_EditorClassIdentifier: 
+  cardName: Poisedon Waves
+  description: Mendorong seluruh bidak yang berada di row yang dipilih sejauh dua
+    blok, bisa dipilih maju atau mundur
+  cardImage: {fileID: 0}
+  cardArchetype: 2
+  cardTargetType: 3
+  effectType: 4
+  intValue: 2

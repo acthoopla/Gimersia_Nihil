@@ -248,7 +248,7 @@ public class MultiplayerManager : MonoBehaviour
         if (drawOrderButton != null)
         {
             drawOrderButton.interactable = false;
-            buttonText = drawOrderButton.GetComponentInChildren<TextMeshProUGUI>();
+            // buttonText = drawOrderButton.GetComponentInChildren<TextMeshProUGUI>();
         }
 
         // 2. Hitung urutan
@@ -256,11 +256,11 @@ public class MultiplayerManager : MonoBehaviour
 
         // 3. Buat string log (PERMINTAAN BARU)
         StringBuilder sb = new StringBuilder();
-        sb.AppendLine("<b>Urutan Giliran:</b>"); // Judul lebih singkat
+        // sb.AppendLine("<b>Urutan Giliran:</b>"); // Judul lebih singkat
         for (int i = 0; i < turnOrder.Count; i++)
         {
             PlayerPawn player = turnOrder[i];
-            sb.AppendLine($"{player.name} (Jalan ke-{i + 1})");
+            sb.AppendLine($"{player.name} ({i + 1})");
         }
 
         // 4. Tampilkan di Tombol
@@ -268,7 +268,12 @@ public class MultiplayerManager : MonoBehaviour
         {
             // (Kamu mungkin perlu menyesuaikan Font Size agar muat)
             // buttonText.fontSize = 18; 
-            buttonText.text = sb.ToString(); // <-- Tampilkan di tombol
+            // buttonText.text = sb.ToString(); // <-- Tampilkan di tombol
+        }
+
+        if (orderStatusText != null)
+        {
+            // orderStatusText.text = sb.ToString();
         }
 
         // 5. Tampilkan di UI & Log
@@ -280,7 +285,7 @@ public class MultiplayerManager : MonoBehaviour
         }
 
         // 6. TUNGGU 3 DETIK (sesuai permintaan)
-        yield return new WaitForSeconds(3f);
+        yield return new WaitForSeconds(1.5f);
 
         // 7. Sembunyikan Panel Order
         if (orderPanel != null) orderPanel.SetActive(false);
@@ -818,7 +823,7 @@ public class MultiplayerManager : MonoBehaviour
         if (choiceInstructionText != null)
         {
             choiceInstructionText.gameObject.SetActive(true);
-            choiceInstructionText.text = "Pilih Target";
+            choiceInstructionText.text = "Choose Target";
         }
         if (uiManager != null) uiManager.SetTurnText("Pilih target (klik pawn) atau Cancel.");
     }
@@ -1068,7 +1073,8 @@ public class MultiplayerManager : MonoBehaviour
             }
 
             PlayerPawn target = null;
-            yield return StartCoroutine(SelectTargetRoutine(user, validTargets, (chosenPawn) => {
+            yield return StartCoroutine(SelectTargetRoutine(user, validTargets, (chosenPawn) =>
+            {
                 target = chosenPawn;
             }));
 
@@ -1111,7 +1117,8 @@ public class MultiplayerManager : MonoBehaviour
             List<PlayerPawn> validTargets = players.Where(p => p != user && p.immuneToAllNegativeTurns <= 0).ToList();
 
             PlayerPawn target = null;
-            yield return StartCoroutine(SelectTargetRoutine(user, validTargets, (chosenPawn) => {
+            yield return StartCoroutine(SelectTargetRoutine(user, validTargets, (chosenPawn) =>
+            {
                 target = chosenPawn;
             }));
 
