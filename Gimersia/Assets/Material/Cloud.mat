@@ -39,7 +39,7 @@ Material:
     m_Floats:
     - _Cloud_Height: 0.1
     - _Cloud_Size: 15.1
-    - _Cloud_Speed: 50
+    - _Cloud_Speed: 30
     - _Cloud_Speed_2: 20
     - _Color_Influence: 0.3
     - _Depth_Fade_Distance: 0.6
@@ -52,8 +52,8 @@ Material:
     - _QueueControl: 0
     - _QueueOffset: 0
     m_Colors:
-    - _Cloud_Color: {r: 0.7735849, g: 0.64996386, b: 0.1788003, a: 1}
-    - _Cloud_Shadow_Color: {r: 0.7830189, g: 0.7512549, b: 0.62419903, a: 1}
+    - _Cloud_Color: {r: 0.8962264, g: 0.65164316, b: 0.10568706, a: 1}
+    - _Cloud_Shadow_Color: {r: 0.7169812, g: 0.6608897, b: 0.4295123, a: 1}
   m_BuildTextureStacks: []
 --- !u!114 &3418539984747435728
 MonoBehaviour:
