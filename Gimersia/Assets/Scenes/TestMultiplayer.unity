@@ -11479,6 +11479,9 @@ MonoBehaviour:
   choiceInstructionText: {fileID: 1856492744}
   physicalDice: {fileID: 8182497289669863726}
   totalTilesInBoard: 100
+  allAvailableCards: []
+  cardTileIDs: 0a00000019000000280000003c00000055000000
+  cardSelectionUI: {fileID: 0}
   tileOffsetBaseRadius: 0.15
   tileOffsetPerPlayer: 0.05
   tileOffsetHeightStep: 0.02
