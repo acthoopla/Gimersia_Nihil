@@ -13,8 +13,8 @@ MonoBehaviour:
   m_Name: ThorHammer
   m_EditorClassIdentifier: 
   cardName: Thor Hammer
-  description: Memundurkan pemain didepanmu 2 tile
-  cardImage: {fileID: 0}
+  description: Push the player in front of you back by 2 tiles.
+  cardImage: {fileID: 21300000, guid: 3d821385a4a8b8e4bb7b90bc42470559, type: 3}
   cardArchetype: 1
   cardTargetType: 1
   effectType: 8

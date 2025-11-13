@@ -13,8 +13,8 @@ MonoBehaviour:
   m_Name: OdinWisdom
   m_EditorClassIdentifier: 
   cardName: Odin Wisdom
-  description: +1 dadu untuk roll berikutnya
-  cardImage: {fileID: 0}
+  description: +1 to your next dice roll.
+  cardImage: {fileID: 21300000, guid: 529e627f3eaa8ba4891223fb051f3748, type: 3}
   cardArchetype: 0
   cardTargetType: 0
   effectType: 7

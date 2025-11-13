@@ -13,9 +13,9 @@ MonoBehaviour:
   m_Name: AresProvocation
   m_EditorClassIdentifier: 
   cardName: Ares Provocation
-  description: -1 untuk nilai dadu untuk memajukan diri sendiri tapi +2 dadu untuk
-    nilai dadu ketika memundurkan player lain
-  cardImage: {fileID: 0}
+  description: -1 to your dice roll when advancing yourself, but +2 when rolling
+    to push others back.
+  cardImage: {fileID: 21300000, guid: b9eaafd58d08a704b88ddb83e260efbd, type: 3}
   cardArchetype: 2
   cardTargetType: 3
   effectType: 6

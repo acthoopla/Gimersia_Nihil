@@ -13,8 +13,8 @@ MonoBehaviour:
   m_Name: AnubisJudgment
   m_EditorClassIdentifier: 
   cardName: Anubis Judgment
-  description: Memilih 1 pemain untuk di hilangkan turn nya satu kali
-  cardImage: {fileID: 0}
+  description: Choose 1 player to skip their next turn.
+  cardImage: {fileID: 21300000, guid: fd3039717b8d85d46be644d631dc6198, type: 3}
   cardArchetype: 1
   cardTargetType: 1
   effectType: 11

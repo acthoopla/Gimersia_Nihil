@@ -13,8 +13,8 @@ MonoBehaviour:
   m_Name: ShieldOfAthena
   m_EditorClassIdentifier: 
   cardName: Shield of Athena
-  description: Imune efek snake 1 kali
-  cardImage: {fileID: 0}
+  description: Immune to snake effects once.
+  cardImage: {fileID: 21300000, guid: 0dc49b89cadc2d940a6163b414af369c, type: 3}
   cardArchetype: 0
   cardTargetType: 0
   effectType: 2

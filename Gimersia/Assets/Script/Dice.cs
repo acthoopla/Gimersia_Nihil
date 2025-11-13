@@ -21,6 +21,9 @@ public class Dice : MonoBehaviour
     [Tooltip("Kecepatan dadu berputar saat di-drag mouse")]
     public float dragSpinSpeed = 200f;
 
+    [Header("Audio")]
+    public AudioSource diceAudio;
+
     // --- Variabel Internal ---
     private Vector3 startPosition;
     private Camera mainCamera;
@@ -52,6 +55,8 @@ public class Dice : MonoBehaviour
         {
             manager.DisableDiceWall();
         }
+
+        diceAudio.Stop();
     }
 
     public IEnumerator WaitForRollToStop(Action<int> callback)
@@ -133,6 +138,8 @@ public class Dice : MonoBehaviour
     void OnMouseUp()
     {
         if (!isDragging) return;
+
+        diceAudio.Play();
 
         isDragging = false;
 

@@ -13,8 +13,8 @@ MonoBehaviour:
   m_Name: LokiTricks
   m_EditorClassIdentifier: 
   cardName: Loki Tricks
-  description: Menukar posisi mu dengan pemain target
-  cardImage: {fileID: 0}
+  description: Swap your position with a target player.
+  cardImage: {fileID: 21300000, guid: 2c23f53e295ea474b89e7fbd83a911fc, type: 3}
   cardArchetype: 3
   cardTargetType: 3
   effectType: 9

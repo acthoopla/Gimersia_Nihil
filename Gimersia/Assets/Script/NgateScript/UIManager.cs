@@ -26,7 +26,9 @@ public class UIManager : MonoBehaviour
 
     [Header("Game Over UI")]
     public GameObject gameOverPanel;
-    public TextMeshProUGUI winnerListText;
+    public GameObject playerWinnerPrefab; // Prefab untuk menampilkan winner
+    public Transform winnerListContainer; // Container untuk list winner
+    public List<Sprite> crowns; // List sprite mahkota (#1, #2, #3)
     public Button playAgainButton;
     public Button returnToMenuButton_GameOver;
 
@@ -36,14 +38,12 @@ public class UIManager : MonoBehaviour
     public TextMeshProUGUI cycleText;
 
     [Header("Game Log")]
-    public GameObject gameLogPanel; // <-- Panelnya masih ada
-    // DIHAPUS: public Button toggleLogButton; 
+    public GameObject gameLogPanel;
     public TextMeshProUGUI gameLogText;
     public ScrollRect logScrollRect;
     public int maxLogLines = 50;
 
     [Header("Panel Detail Kartu (Pop-up)")]
-    // ... (sisa variabel card panel tidak berubah)
     public GameObject cardDetailPanel;
     public GameObject cardInfoObject;
     public TextMeshProUGUI cardNameText;
@@ -56,18 +56,18 @@ public class UIManager : MonoBehaviour
     public Button confirmChoiceButton;
 
     [Header("Card Choice Panel (Pilih 1 dari 3)")]
-    // ... (tidak berubah)
     public GameObject cardChoicePanel;
     public GameObject cardChoicePrefab;
     public Transform choiceContainer;
 
     [Header("Tampilan Tangan Pemain")]
-    public Transform popupContainer; // <-- TAMBAHKAN INI
+    public Transform popupContainer;
     public GameObject cardDisplayPrefab;
     public Transform handContainer;
 
     private List<GameObject> currentHandObjects = new List<GameObject>();
     private List<GameObject> currentChoiceObjects = new List<GameObject>();
+    private List<GameObject> currentWinnerObjects = new List<GameObject>(); // Track winner UI objects
     private CardData currentlyShownCard;
     private List<string> logMessages = new List<string>();
 
@@ -81,7 +81,6 @@ public class UIManager : MonoBehaviour
 
     void Start()
     {
-        // Panel
         if (settingsPanel != null) settingsPanel.SetActive(false);
         if (gameplayPanel != null) gameplayPanel.SetActive(true);
         Time.timeScale = 1f;
@@ -89,27 +88,15 @@ public class UIManager : MonoBehaviour
         if (cardChoicePanel != null) cardChoicePanel.SetActive(false);
         if (gameOverPanel != null) gameOverPanel.SetActive(false);
 
-        // --- PERUBAHAN DI SINI ---
-        // if (gameLogPanel != null) gameLogPanel.SetActive(true); // Langsung nyala
-        // -------------------------
-
-        //// Tombol Kartu
-        //if (closeDetailButton != null) closeDetailButton.onClick.AddListener(OnCloseDetailPressed);
         if (useCardButton != null) useCardButton.onClick.AddListener(OnUseCardPressed);
         if (confirmChoiceButton != null) confirmChoiceButton.onClick.AddListener(OnConfirmCardChoicePressed);
-
-        // Tombol Game Over
         if (playAgainButton != null) playAgainButton.onClick.AddListener(OnPlayAgainPressed);
         if (returnToMenuButton_GameOver != null) returnToMenuButton_GameOver.onClick.AddListener(OnReturnToMainMenu);
 
-        // DIHAPUS: Listener untuk toggleLogButton
-
-        // Teks
         if (currentActionText != null) currentActionText.text = "";
         if (gameLogText != null) gameLogText.text = "";
     }
 
-    // --- FUNGSI LOGIKA BARU ---
     #region Game Log & Status
 
     public void Log(string message)
@@ -153,8 +140,6 @@ public class UIManager : MonoBehaviour
         }
     }
 
-    // DIHAPUS: Fungsi OnToggleLogPressed()
-
     private IEnumerator ForceScrollDown()
     {
         if (logScrollRect == null) yield break;
@@ -164,21 +149,7 @@ public class UIManager : MonoBehaviour
 
     #endregion
 
-    // (Sisa script tidak berubah)
     #region Card Logic Functions
-    //private void OnCloseDetailPressed()
-    //{
-    //    cardDetailPanel.SetActive(false);
-
-    //    // --- TAMBAHKAN BARIS INI ---
-    //    if (CardDisplay.currentlySelectedCard != null)
-    //    {
-    //        CardDisplay.currentlySelectedCard.Deselect();
-    //    }
-    //    // --- AKHIR TAMBAHAN ---
-
-    //    currentlyShownCard = null;
-    //}
 
     private void OnUseCardPressed()
     {
@@ -190,27 +161,22 @@ public class UIManager : MonoBehaviour
         }
     }
 
-    // Fungsi baru untuk menangani pilihan kartu secara langsung
     public void OnCardChoiceSelected(CardData chosenCard)
     {
         if (MultiplayerManager.Instance == null) return;
 
-        // 1. Langsung tambahkan kartu ke pemain
         MultiplayerManager.Instance.AddChosenCardToPlayer(chosenCard);
 
-        // 2. Tutup panel pilihan kartu
         if (cardChoicePanel != null)
             cardChoicePanel.SetActive(false);
 
         ClearChoicePrefabs();
 
-        // 3. Tampilkan kembali UI tangan pemain
         if (handContainer != null)
         {
             handContainer.gameObject.SetActive(true);
         }
 
-        // 4. (Opsional) Log ke UI
         SetActionText($"{MultiplayerManager.Instance.GetCurrentPlayer().name} mengambil kartu {chosenCard.cardName}.");
     }
 
@@ -318,21 +284,17 @@ public class UIManager : MonoBehaviour
 
         foreach (PlayerCardInstance cardInstance in player.heldCards)
         {
-            // --- TAMBAHKAN PENJAGA INI ---
             if (cardInstance == null || cardInstance.cardData == null)
             {
                 Debug.LogWarning("DisplayPlayerHand: Melewatkan 1 kartu karena datanya null.");
-                continue; // Lanjut ke kartu berikutnya
+                continue;
             }
-            // --- AKHIR PENJAGA ---
 
-            // Langsung instantiate CardHandPrefab ke handContainer
             GameObject newCard = Instantiate(cardDisplayPrefab, handContainer);
 
             CardDisplay cardDisplayScript = newCard.GetComponent<CardDisplay>();
             if (cardDisplayScript != null)
             {
-                // Sekarang kita 100% yakin cardInstance.cardData tidak null
                 cardDisplayScript.Setup(cardInstance.cardData);
             }
 
@@ -354,7 +316,8 @@ public class UIManager : MonoBehaviour
     }
     #endregion
 
-    #region Player Turn & Game Flow (From Your Code)
+    #region Player Turn & Game Flow
+
     public void SetupPlayerList(List<PlayerPawn> playerTurnOrder)
     {
         if (playerUIContainer == null || playerUIEntryPrefab == null)
@@ -375,7 +338,7 @@ public class UIManager : MonoBehaviour
             if (entryScript != null)
             {
                 entryScript.Setup(player.name);
-                entryScript.SetActive(false); // <-- TAMBAHKAN BARIS INI
+                entryScript.SetActive(false);
                 uiEntries.Add(entryScript);
             }
         }
@@ -431,20 +394,56 @@ public class UIManager : MonoBehaviour
         if (gameplayPanel != null) gameplayPanel.SetActive(false);
         if (gameOverPanel != null) gameOverPanel.SetActive(true);
 
-        if (winnerListText != null)
+        // Clear previous winner UI objects
+        foreach (GameObject winnerObj in currentWinnerObjects)
         {
-            StringBuilder sb = new StringBuilder();
-            sb.AppendLine("<b><size=120%>PERINGKAT</size></b>");
-            sb.AppendLine();
-            for (int i = 0; i < winners.Count; i++)
+            Destroy(winnerObj);
+        }
+        currentWinnerObjects.Clear();
+
+        if (winnerListContainer == null || playerWinnerPrefab == null)
+        {
+            Debug.LogWarning("Winner container atau prefab tidak di-set di UIManager!");
+            return;
+        }
+
+        // Create winner entries
+        for (int i = 0; i < winners.Count; i++)
+        {
+            GameObject winnerEntry = Instantiate(playerWinnerPrefab, winnerListContainer);
+            PlayerWinnerDisplay winnerDisplay = winnerEntry.GetComponent<PlayerWinnerDisplay>();
+
+            if (winnerDisplay != null)
             {
-                sb.AppendLine($"<color=green>#{i + 1}: {winners[i].name}</color>");
+                int rank = i + 1;
+                Sprite crownSprite = null;
+
+                // Hanya berikan crown untuk rank 1-3
+                if (rank <= 3 && crowns != null && crowns.Count >= rank)
+                {
+                    crownSprite = crowns[rank - 1]; // index 0 untuk rank 1, dst
+                }
+
+                winnerDisplay.Setup(winners[i].name, rank, crownSprite);
             }
-            if (loser != null)
+
+            currentWinnerObjects.Add(winnerEntry);
+        }
+
+        // Tambahkan loser di posisi terakhir dengan rank sesuai jumlah player
+        if (loser != null)
+        {
+            GameObject loserEntry = Instantiate(playerWinnerPrefab, winnerListContainer);
+            PlayerWinnerDisplay loserDisplay = loserEntry.GetComponent<PlayerWinnerDisplay>();
+
+            if (loserDisplay != null)
             {
-                sb.AppendLine($"<color=red>Kalah: {loser.name}</color>");
+                // Rank loser adalah jumlah total player (winners + loser)
+                int loserRank = winners.Count + 1;
+                loserDisplay.SetupAsLoser(loser.name, loserRank);
             }
-            winnerListText.text = sb.ToString();
+
+            currentWinnerObjects.Add(loserEntry);
         }
     }
 

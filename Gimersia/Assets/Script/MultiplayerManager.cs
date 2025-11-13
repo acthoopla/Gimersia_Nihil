@@ -59,6 +59,10 @@ public class MultiplayerManager : MonoBehaviour
     public float tileOffsetBaseRadius = 0.25f;
     public float tileOffsetPerPlayer = 0.18f;
     public float tileOffsetHeightStep = 0.02f;
+
+    [Header("Visual Effect")]
+    public GameObject snakeParticle;
+    public GameObject blessingParticle;
     #endregion
 
     #region Variabel Internal
@@ -210,7 +214,7 @@ public class MultiplayerManager : MonoBehaviour
             else
                 lines.Add($"P{i + 1}: -");
         }
-        orderStatusText.text = string.Join("   |   ", lines);
+        orderStatusText.text = string.Join("  |  ", lines);
     }
 
     // --- FUNGSI INI DIUBAH ---
@@ -538,6 +542,8 @@ public class MultiplayerManager : MonoBehaviour
                 yield return new WaitForSeconds(0.2f);
                 Tiles startTile = landed;
                 Tiles endTile = landed.targetTile;
+                GameObject snake = Instantiate(snakeParticle, player.transform.position, Quaternion.identity);
+                Destroy(snake, 3f);
                 yield return StartCoroutine(AnimateSnakeSequence(player, startTile, endTile));
                 UpdatePawnPositionsOnTile(player.currentTileID);
             }
@@ -546,6 +552,8 @@ public class MultiplayerManager : MonoBehaviour
         {
             if (uiManager != null) uiManager.SetActionText($"{player.name} Naik tangga!");
             yield return new WaitForSeconds(0.2f);
+
+            player.PlayLadderParticle();
 
             Tiles startTile = landed;
             Tiles endTile = landed.targetTile;
@@ -560,10 +568,15 @@ public class MultiplayerManager : MonoBehaviour
             }
 
             UpdatePawnPositionsOnTile(player.currentTileID);
+            yield return new WaitForSeconds(1.5f);
+
+            player.StopLadderParticle();
         }
         else if (landed.type == TileType.BlessingCard)
         {
             if (uiManager != null) uiManager.SetActionText($"{player.name} mendarat di petak Blessing!");
+            GameObject blessing = Instantiate(blessingParticle, player.transform.position, Quaternion.identity);
+            Destroy(blessing, 3f);
             yield return new WaitForSeconds(0.5f);
             yield return StartCoroutine(ShowCardChoiceRoutine(player));
         }
@@ -925,7 +938,7 @@ public class MultiplayerManager : MonoBehaviour
             uiManager.DisplayPlayerHand(user);
         }
         Debug.Log(user.name + " menggunakan kartu: " + card.cardName);
-        
+
         switch (card.effectType)
         {
             case CardEffectType.AthenaBlessing:

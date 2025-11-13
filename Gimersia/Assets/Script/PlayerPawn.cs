@@ -42,6 +42,9 @@ public class PlayerPawn : MonoBehaviour
     public bool drawCardNextTurn = false;
     // ---------------------------------
 
+    [Header("Visual Effect")]
+    public GameObject ladderParticle;
+
     [HideInInspector]
     public bool wasReversedThisCycle = false;
 
@@ -163,7 +166,7 @@ public class PlayerPawn : MonoBehaviour
     {
         yield return StartCoroutine(TeleportToPosition(targetTileID, targetPos));
     }
-    
+
     private IEnumerator TeleportToPosition(int targetTileID, Vector3 targetPos)
     {
         float speed = stepSpeed * 2.0f;
@@ -180,7 +183,7 @@ public class PlayerPawn : MonoBehaviour
         float targetYAngle = (row % 2 == 0) ? 0f : 180f;
         transform.rotation = Quaternion.Euler(0, targetYAngle, 0);
     }
-    
+
     #region Helper Coroutines
     // Semua helper dari KODEMU (SmoothRotate, MoveToPosition)
     IEnumerator SmoothRotate(float targetYAngle)
@@ -221,6 +224,18 @@ public class PlayerPawn : MonoBehaviour
             yield return null;
         }
         transform.position = targetPos;
+    }
+    #endregion
+
+    #region Visual Effect
+    public void PlayLadderParticle()
+    {
+        ladderParticle.SetActive(true);
+    }
+
+    public void StopLadderParticle()
+    {
+        ladderParticle.SetActive(false);
     }
     #endregion
 }

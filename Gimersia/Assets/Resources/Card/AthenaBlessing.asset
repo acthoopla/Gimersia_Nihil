@@ -13,8 +13,8 @@ MonoBehaviour:
   m_Name: AthenaBlessing
   m_EditorClassIdentifier: 
   cardName: Athena Blessing
-  description: Memberikan perlindungan dari dimundurkan 2 cycle
-  cardImage: {fileID: 0}
+  description: Provides protection from being Smite for 2 cycles.
+  cardImage: {fileID: 21300000, guid: 9f192de02270f0845a8cc52826e2c57d, type: 3}
   cardArchetype: 0
   cardTargetType: 0
   effectType: 1

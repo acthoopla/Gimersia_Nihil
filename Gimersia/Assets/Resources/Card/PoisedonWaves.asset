@@ -13,9 +13,9 @@ MonoBehaviour:
   m_Name: PoisedonWaves
   m_EditorClassIdentifier: 
   cardName: Poisedon Waves
-  description: Mendorong seluruh bidak yang berada di row yang dipilih sejauh dua
-    blok, bisa dipilih maju atau mundur
-  cardImage: {fileID: 0}
+  description: Push all pawns in a chosen row by two tiles. Choose to move them forward
+    or backward.
+  cardImage: {fileID: 21300000, guid: 0709322fbf8f58746aefa4c2b64e829f, type: 3}
   cardArchetype: 2
   cardTargetType: 3
   effectType: 4

@@ -13,7 +13,7 @@ MonoBehaviour:
   m_Name: IsisProtection
   m_EditorClassIdentifier: 
   cardName: Isis Protection
-  description: Blok efek negatif selama 2 giliran
+  description: Block negative effects for 2 turns.
   cardImage: {fileID: 0}
   cardArchetype: 0
   cardTargetType: 0

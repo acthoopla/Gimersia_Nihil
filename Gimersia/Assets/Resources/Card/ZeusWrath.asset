@@ -13,8 +13,8 @@ MonoBehaviour:
   m_Name: ZeusWrath
   m_EditorClassIdentifier: 
   cardName: Zeus Wrath
-  description: Pilih 1 pemain, mundurkan 3 blok
-  cardImage: {fileID: 0}
+  description: Choose one player to be struck by lightning, moving them back 3 tiles.
+  cardImage: {fileID: 21300000, guid: aa211e020adc3194997776138a362cbb, type: 3}
   cardArchetype: 1
   cardTargetType: 1
   effectType: 5

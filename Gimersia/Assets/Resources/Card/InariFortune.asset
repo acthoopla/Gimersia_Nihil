@@ -13,7 +13,7 @@ MonoBehaviour:
   m_Name: InariFortune
   m_EditorClassIdentifier: 
   cardName: Inari Fortune
-  description: Turn selanjutnya +1 langkah dan draw 1 kartu baru
+  description: On your next turn, gain +1 movement and draw 1 new card.
   cardImage: {fileID: 0}
   cardArchetype: 0
   cardTargetType: 0

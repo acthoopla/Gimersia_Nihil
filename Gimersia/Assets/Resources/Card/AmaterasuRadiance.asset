@@ -13,7 +13,7 @@ MonoBehaviour:
   m_Name: AmaterasuRadiance
   m_EditorClassIdentifier: 
   cardName: Amaterasu Radiance
-  description: Dapat turn ekstra setelah menggunakan tangga
+  description: Gain an extra turn after using a ladder.
   cardImage: {fileID: 0}
   cardArchetype: 0
   cardTargetType: 0
