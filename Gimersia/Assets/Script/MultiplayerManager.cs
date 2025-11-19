@@ -4,7 +4,7 @@ using System.Linq;
 using UnityEngine;
 using UnityEngine.UI;
 using TMPro;
-using System.Text; // <-- PENTING: Tambahkan ini untuk StringBuilder
+using System.Text;
 
 public class MultiplayerManager : MonoBehaviour
 {
@@ -59,10 +59,6 @@ public class MultiplayerManager : MonoBehaviour
     public float tileOffsetBaseRadius = 0.25f;
     public float tileOffsetPerPlayer = 0.18f;
     public float tileOffsetHeightStep = 0.02f;
-
-    [Header("Visual Effect")]
-    public GameObject snakeParticle;
-    public GameObject blessingParticle;
     #endregion
 
     #region Variabel Internal
@@ -76,7 +72,6 @@ public class MultiplayerManager : MonoBehaviour
     private int currentTurnIdx = 0;
     private bool isActionRunning = false;
     public bool IsActionRunning => isActionRunning;
-    public bool IsInSetupPhase => orderPanel != null && orderPanel.activeSelf;
     private bool isSpawning = false;
     private int currentCycle = 1;
     private bool awaitingTargetSelection = false;
@@ -86,7 +81,6 @@ public class MultiplayerManager : MonoBehaviour
     private bool isInReverseMode = false;
     private PlayerPawn playerWaitingForCard;
     private List<PlayerPawn> winners = new List<PlayerPawn>();
-    private bool hasUsedCardThisTurn = false;
     #endregion
 
     #region Unity Callbacks & Setup
@@ -192,7 +186,7 @@ public class MultiplayerManager : MonoBehaviour
         dicePool = new List<int> { 1, 2, 3, 4, 5, 6 };
         drawnNumbers.Clear(); drawIndex = 0;
         if (orderPanel != null) orderPanel.SetActive(true);
-        if (drawOrderButton != null) drawOrderButton.interactable = true; // Pastikan tombol aktif
+        if (drawOrderButton != null) drawOrderButton.interactable = true;
         UpdatePoolUI(); UpdateOrderStatusUI();
         if (uiManager != null) uiManager.SetTurnText($"Order Selection: Giliran Player {drawIndex + 1} untuk Draw");
     }
@@ -214,13 +208,12 @@ public class MultiplayerManager : MonoBehaviour
             else
                 lines.Add($"P{i + 1}: -");
         }
-        orderStatusText.text = string.Join("  |  ", lines);
+        orderStatusText.text = string.Join("   |   ", lines);
     }
 
-    // --- FUNGSI INI DIUBAH ---
     void OnDrawOrderPressed()
     {
-        if (isSpawning) return; // Mencegah klik saat coroutine berjalan
+        if (isSpawning) return;
         if (drawIndex >= players.Count || dicePool.Count == 0) return;
 
         int idx = Random.Range(0, dicePool.Count);
@@ -233,103 +226,87 @@ public class MultiplayerManager : MonoBehaviour
 
         if (drawIndex < players.Count)
         {
-            // Jika masih ada pemain, update teks
             if (uiManager != null) uiManager.SetTurnText($"Order Selection: Giliran Player {drawIndex + 1} untuk Draw");
         }
         else
         {
-            // Jika pemain terakhir, panggil COROUTINE
-            isSpawning = true; // Gunakan flag ini untuk mencegah klik ganda
-            StartCoroutine(FinalizeTurnOrderSequence()); // <-- PANGGIL COROUTINE BARU
+            isSpawning = true;
+            StartCoroutine(FinalizeTurnOrderSequence());
         }
     }
 
-    // DIHAPUS: Fungsi 'FinalizeTurnOrder()' yang lama dihapus
-
-    // --- FUNGSI BARU (Menggantikan FinalizeTurnOrder) ---
     IEnumerator FinalizeTurnOrderSequence()
     {
-        // 1. Matikan tombol & ambil komponen Teks-nya
         TextMeshProUGUI buttonText = null;
         if (drawOrderButton != null)
         {
             drawOrderButton.interactable = false;
-            // buttonText = drawOrderButton.GetComponentInChildren<TextMeshProUGUI>();
+            buttonText = drawOrderButton.GetComponentInChildren<TextMeshProUGUI>();
         }
 
-        // 2. Hitung urutan
         turnOrder = drawnNumbers.OrderByDescending(kv => kv.Value).Select(kv => kv.Key).ToList();
 
-        // 3. Buat string log (PERMINTAAN BARU)
         StringBuilder sb = new StringBuilder();
-        // sb.AppendLine("<b>Urutan Giliran:</b>"); // Judul lebih singkat
+        sb.AppendLine("<b>Urutan Giliran:</b>");
         for (int i = 0; i < turnOrder.Count; i++)
         {
             PlayerPawn player = turnOrder[i];
-            sb.AppendLine($"{player.name} ({i + 1})");
+            sb.AppendLine($"{player.name} (Jalan ke-{i + 1})");
         }
 
-        // 4. Tampilkan di Tombol
-        if (buttonText != null)
-        {
-            // (Kamu mungkin perlu menyesuaikan Font Size agar muat)
-            // buttonText.fontSize = 18; 
-            // buttonText.text = sb.ToString(); // <-- Tampilkan di tombol
-        }
+        if (buttonText != null) buttonText.text = sb.ToString();
 
-        if (orderStatusText != null)
-        {
-            // orderStatusText.text = sb.ToString();
-        }
-
-        // 5. Tampilkan di UI & Log
         if (uiManager != null)
         {
-            uiManager.SetTurnText("Undian Selesai!"); // Teks atas
-            uiManager.Log(sb.ToString()); // Tetap kirim ke log
-            // HAPUS: uiManager.SetActionText(sb.ToString()); 
-        }
-
-        // 6. TUNGGU 3 DETIK (sesuai permintaan)
-        yield return new WaitForSeconds(1.5f);
-
-        // 7. Sembunyikan Panel Order
-        if (orderPanel != null) orderPanel.SetActive(false);
-
-        // 8. (Opsional) Reset teks tombol
-        if (buttonText != null)
-        {
-            buttonText.text = "Draw";
-            // kembalikan font size jika diubah
-        }
-
-        // 9. Siapkan UI Gameplay (Turn list & Kartu)
-        if (uiManager != null)
-        {
+            uiManager.SetTurnText("Undian Selesai!");
+            uiManager.Log(sb.ToString());
             uiManager.SetupPlayerList(turnOrder);
             uiManager.UpdateCycle(currentCycle);
         }
 
-        // 10. Mulai game
+        yield return new WaitForSeconds(3f);
+
+        if (orderPanel != null) orderPanel.SetActive(false);
+
+        if (buttonText != null) buttonText.text = "Draw";
+
         currentTurnIdx = 0;
         HighlightCurrentPlayer();
 
-        // 11. Selesai
+        if (drawOrderButton != null) drawOrderButton.interactable = true;
         isSpawning = false;
     }
-    // ------------------------------------------
     #endregion
 
-    // (Sisa script dari sini ke bawah tidak ada perubahan)
-    // ...
-    // (Salin-tempel semua sisa fungsi Anda yang ada di:
-    //  - #region Gameplay Loop
-    //  - #region Board, UI, & Dice Wall Helpers
-    //  - #region Reverse Helpers
-    //  - #region Card System Functions
-    //  - #region Animations
-    //  ...tepat di sini)
     #region Gameplay Loop
+
+    // --- FUNGSI BARU: Mengontrol visual dadu sebelum dilempar ---
+    public void CheckDiceStatus()
+    {
+        if (turnOrder.Count == 0) return;
+        PlayerPawn current = turnOrder[currentTurnIdx];
+
+        // Cek apakah pemain punya efek dadu ekstra (Odin)
+        bool useDualDice = (current.extraDiceRolls > 0);
+
+        if (physicalDice != null && physicalDice.followerDice != null)
+        {
+            // Aktifkan/Nonaktifkan dadu kedua
+            physicalDice.followerDice.gameObject.SetActive(useDualDice);
+
+            if (useDualDice)
+            {
+                // Reset posisi dadu kedua agar rapi di samping dadu utama
+                physicalDice.followerDice.transform.position = physicalDice.transform.position + physicalDice.followerOffset;
+                physicalDice.followerDice.transform.rotation = Quaternion.identity;
+                physicalDice.followerDice.ResetDice(); // Pastikan fisikanya mati
+
+                if (uiManager != null) uiManager.SetActionText($"{current.name} siap melempar 2 Dadu (Odin)!");
+            }
+        }
+    }
+    // -----------------------------------------------------------
+
     public void NotifyDiceThrown()
     {
         if (isActionRunning) return;
@@ -354,46 +331,79 @@ public class MultiplayerManager : MonoBehaviour
 
         if (uiManager != null) uiManager.SetActionText($"{current.name} melempar dadu...");
 
-        int rollResult = 0;
-        yield return StartCoroutine(physicalDice.WaitForRollToStop((result) => { rollResult = result; }));
+        // --- LOGIKA DUAL DICE SAAT LEMPAR ---
+        // Cek apakah dadu kedua sedang aktif
+        bool dualDiceActive = (physicalDice.followerDice != null && physicalDice.followerDice.gameObject.activeSelf);
+
+        int rollResult1 = 0;
+        int rollResult2 = 0;
+
+        bool dice1Done = false;
+        bool dice2Done = false;
+
+        // Tunggu Dadu 1
+        StartCoroutine(physicalDice.WaitForRollToStop((result) => {
+            rollResult1 = result;
+            dice1Done = true;
+        }));
+
+        // Tunggu Dadu 2 (jika ada)
+        if (dualDiceActive)
+        {
+            StartCoroutine(physicalDice.followerDice.WaitForRollToStop((result) => {
+                rollResult2 = result;
+                dice2Done = true;
+            }));
+        }
+        else
+        {
+            dice2Done = true; // Langsung selesai jika tidak pakai
+        }
+
+        // Tunggu keduanya berhenti
+        while (!dice1Done || !dice2Done)
+        {
+            yield return null;
+        }
 
         DisableDiceWall();
 
+        // Total hasil lemparan
+        int totalRoll = rollResult1 + rollResult2;
+
+        if (dualDiceActive && uiManager != null)
+        {
+            uiManager.SetActionText($"Hasil Dadu: {rollResult1} + {rollResult2} = {totalRoll}");
+            yield return new WaitForSeconds(1f);
+        }
+
+        // Matikan dadu kedua setelah selesai dibaca
+        if (dualDiceActive)
+        {
+            physicalDice.followerDice.gameObject.SetActive(false);
+            current.extraDiceRolls = 0; // Konsumsi efek Odin
+        }
+        // ------------------------------------
+
+        // Logika Buff (Hermes, Ares) diterapkan ke TOTAL
         if (current.nextRollModifier != 0)
         {
-            if (uiManager != null) uiManager.SetActionText($"Roll {rollResult} + Buff Hermes {current.nextRollModifier}!");
-            rollResult += current.nextRollModifier;
+            if (uiManager != null) uiManager.SetActionText($"Roll {totalRoll} + Buff Hermes {current.nextRollModifier}!");
+            totalRoll += current.nextRollModifier;
             current.nextRollModifier = 0;
             yield return new WaitForSeconds(1f);
         }
         if (current.hasAresProvocation)
         {
-            rollResult -= 1;
-            if (uiManager != null) uiManager.SetActionText($"Roll {rollResult + 1} - Debuff Ares 1 = {rollResult}!");
+            totalRoll -= 1;
+            if (uiManager != null) uiManager.SetActionText($"Roll {totalRoll + 1} - Debuff Ares 1 = {totalRoll}!");
             yield return new WaitForSeconds(1f);
         }
-        rollResult = Mathf.Max(1, rollResult);
+        totalRoll = Mathf.Max(1, totalRoll);
 
-        int totalRolls = 1 + current.extraDiceRolls;
-        current.extraDiceRolls = 0;
-
-        for (int i = 0; i < totalRolls; i++)
-        {
-            if (i > 0)
-            {
-                if (uiManager != null) uiManager.SetActionText($"{current.name} melempar Dadu Ekstra (Odin)!");
-                yield return new WaitForSeconds(1f);
-                yield return StartCoroutine(physicalDice.WaitForRollToStop((result) => { rollResult = result; }));
-                DisableDiceWall();
-            }
-            isActionRunning = true;
-
-            bool isFirstRoll = (i == 0);
-            yield return StartCoroutine(HandlePlayerRollAndMove(current, rollResult, isFirstRoll));
-
-            if (winners.Contains(current))
-                break;
-        }
+        // Pindah Player (Sekali jalan, tidak ada loop multi-roll lagi karena sudah digabung di dual dice)
+        bool isFirstRoll = true; // Selalu true karena sekarang cuma 1 kali move besar
+        yield return StartCoroutine(HandlePlayerRollAndMove(current, totalRoll, isFirstRoll));
 
         AdvanceTurn();
     }
@@ -479,7 +489,23 @@ public class MultiplayerManager : MonoBehaviour
             int startTile = player.currentTileID;
             int finalTarget = startTile + roll;
 
-            if (finalTarget > totalTilesInBoard)
+            if (finalTarget == totalTilesInBoard)
+            {
+                yield return StartCoroutine(player.MoveToTile(finalTarget, (int id) => GetTilePositionWithOffset(id, player)));
+                //if (infoText != null) infoText.text = $"{player.name} mencapai finish!";
+
+                if (!winners.Contains(player))
+                {
+                    winners.Add(player);
+                    player.SetHighlight(false);
+                    if (uiManager != null)
+                    {
+                        int winnerIndex = turnOrder.IndexOf(player);
+                        uiManager.SetPlayerAsWinner(winnerIndex);
+                    }
+                }
+            }
+            else if (finalTarget > totalTilesInBoard)
             {
                 int overshoot = finalTarget - totalTilesInBoard;
                 int bounceTarget = totalTilesInBoard - overshoot;
@@ -492,7 +518,11 @@ public class MultiplayerManager : MonoBehaviour
                 yield return StartCoroutine(player.MoveToTile(finalTarget, (int id) => GetTilePositionWithOffset(id, player)));
             }
 
-            yield return StartCoroutine(CheckLandingTile(player));
+            if (!winners.Contains(player))
+            {
+                yield return StartCoroutine(CheckLandingTile(player));
+            }
+
             UpdatePawnPositionsOnTile(player.currentTileID);
             #endregion
         }
@@ -523,6 +553,7 @@ public class MultiplayerManager : MonoBehaviour
         Tiles landed = GetTileByID(player.currentTileID);
         if (landed == null) yield break;
 
+        // Cek Ular, Tangga, Blessing
         if (landed.type == TileType.SnakeStart && landed.targetTile != null)
         {
             if (player.immuneToAllNegativeTurns > 0)
@@ -542,8 +573,6 @@ public class MultiplayerManager : MonoBehaviour
                 yield return new WaitForSeconds(0.2f);
                 Tiles startTile = landed;
                 Tiles endTile = landed.targetTile;
-                GameObject snake = Instantiate(snakeParticle, player.transform.position, Quaternion.identity);
-                Destroy(snake, 3f);
                 yield return StartCoroutine(AnimateSnakeSequence(player, startTile, endTile));
                 UpdatePawnPositionsOnTile(player.currentTileID);
             }
@@ -552,9 +581,6 @@ public class MultiplayerManager : MonoBehaviour
         {
             if (uiManager != null) uiManager.SetActionText($"{player.name} Naik tangga!");
             yield return new WaitForSeconds(0.2f);
-
-            player.PlayLadderParticle();
-
             Tiles startTile = landed;
             Tiles endTile = landed.targetTile;
             yield return StartCoroutine(AnimateLadderSequence(player, startTile, endTile));
@@ -566,17 +592,11 @@ public class MultiplayerManager : MonoBehaviour
                 if (uiManager != null) uiManager.SetActionText($"Amaterasu Radiance! {player.name} mendapat giliran ekstra!");
                 yield return new WaitForSeconds(1.5f);
             }
-
             UpdatePawnPositionsOnTile(player.currentTileID);
-            yield return new WaitForSeconds(1.5f);
-
-            player.StopLadderParticle();
         }
         else if (landed.type == TileType.BlessingCard)
         {
             if (uiManager != null) uiManager.SetActionText($"{player.name} mendarat di petak Blessing!");
-            GameObject blessing = Instantiate(blessingParticle, player.transform.position, Quaternion.identity);
-            Destroy(blessing, 3f);
             yield return new WaitForSeconds(0.5f);
             yield return StartCoroutine(ShowCardChoiceRoutine(player));
         }
@@ -601,13 +621,9 @@ public class MultiplayerManager : MonoBehaviour
             isActionRunning = true;
             if (physicalDice != null) physicalDice.gameObject.SetActive(false);
             PlayerPawn loser = turnOrder.FirstOrDefault(p => !winners.Contains(p));
-
             string gameOverMsg = "Game Selesai!";
-            if (loser != null)
-                gameOverMsg = $"Game Selesai! {loser.name} adalah yang terakhir!";
-            else
-                gameOverMsg = "Game Selesai! Seri!";
-
+            if (loser != null) gameOverMsg = $"Game Selesai! {loser.name} adalah yang terakhir!";
+            else gameOverMsg = "Game Selesai! Seri!";
             if (uiManager != null)
             {
                 uiManager.SetActionText(gameOverMsg);
@@ -637,10 +653,8 @@ public class MultiplayerManager : MonoBehaviour
                 p.ShowReversedBadge(false);
                 p.hasAmaterasuRadiance = false;
                 p.hasAresProvocation = false;
-                if (p.immuneToReverseCycles > 0)
-                    p.immuneToReverseCycles--;
-                if (p.immuneToAllNegativeTurns > 0)
-                    p.immuneToAllNegativeTurns--;
+                if (p.immuneToReverseCycles > 0) p.immuneToReverseCycles--;
+                if (p.immuneToAllNegativeTurns > 0) p.immuneToAllNegativeTurns--;
                 CheckForExpiredCards(p);
             }
         }
@@ -668,7 +682,7 @@ public class MultiplayerManager : MonoBehaviour
     void CheckForExpiredCards(PlayerPawn player)
     {
         List<PlayerCardInstance> expiredCards = player.heldCards
-            .Where(card => (currentCycle - card.cycleAcquired) >= 3)
+            .Where(card => (currentCycle - card.cycleAcquired) > 3)
             .ToList();
         if (expiredCards.Count > 0)
         {
@@ -688,10 +702,12 @@ public class MultiplayerManager : MonoBehaviour
 
     void HighlightCurrentPlayer()
     {
+        // --- CALL CHECK STATUS DI SINI ---
+        CheckDiceStatus();
+        // ---------------------------------
+
         if (physicalDice != null) physicalDice.ResetDice();
         if (turnOrder.Count == 0) return;
-
-        hasUsedCardThisTurn = false;
 
         PlayerPawn cur = turnOrder[currentTurnIdx];
 
@@ -719,6 +735,7 @@ public class MultiplayerManager : MonoBehaviour
     #endregion
 
     #region Board, UI, & Dice Wall Helpers
+    // (Tidak ada perubahan)
     Vector3 GetTilePosition(int tileID)
     {
         Tiles t = GetTileByID(tileID);
@@ -788,6 +805,7 @@ public class MultiplayerManager : MonoBehaviour
     #endregion
 
     #region Reverse Helpers
+    // (Tidak ada perubahan)
     public List<PlayerPawn> GetValidReverseTargets(PlayerPawn actor)
     {
         return players.Where(p =>
@@ -840,7 +858,7 @@ public class MultiplayerManager : MonoBehaviour
         if (choiceInstructionText != null)
         {
             choiceInstructionText.gameObject.SetActive(true);
-            choiceInstructionText.text = "Choose Target";
+            choiceInstructionText.text = "Pilih Target";
         }
         if (uiManager != null) uiManager.SetTurnText("Pilih target (klik pawn) atau Cancel.");
     }
@@ -873,6 +891,7 @@ public class MultiplayerManager : MonoBehaviour
     #endregion
 
     #region Card System Functions
+    // (Fungsi Helper Kartu)
     public bool IsPlayerTurn(PlayerPawn player) { return (turnOrder.Count > 0 && turnOrder[currentTurnIdx] == player); }
     public PlayerPawn GetCurrentPlayer() { return (turnOrder.Count > 0) ? turnOrder[currentTurnIdx] : null; }
 
@@ -902,21 +921,15 @@ public class MultiplayerManager : MonoBehaviour
             }
         }
     }
+
+    // --- UPDATED UseCard (Call CheckDiceStatus for Odin) ---
     public void UseCard(CardData card)
     {
-        if (hasUsedCardThisTurn)
-        {
-            if (uiManager != null) uiManager.SetActionText("Kamu sudah menggunakan kartu di giliran ini!");
-            return;
-        }
         if (isActionRunning)
         {
             if (uiManager != null) uiManager.SetActionText("Tidak bisa menggunakan kartu saat aksi berjalan.");
             return;
         }
-
-        hasUsedCardThisTurn = true;
-
         PlayerPawn user = turnOrder[currentTurnIdx];
         PlayerCardInstance cardInstance = user.heldCards.FirstOrDefault(c => c.cardData == card);
         if (cardInstance != null)
@@ -925,11 +938,6 @@ public class MultiplayerManager : MonoBehaviour
         }
         else
         {
-            // --- TAMBAHKAN LOG INI ---
-            Debug.Log($"[MultiplayerManager] UseCard dipanggil untuk: {(card != null ? card.cardName : "KARTU NULL")}");
-            Debug.Log($"[MultiplayerManager] Mengecek 'turnOrder'. Apakah 'turnOrder' null? {turnOrder == null}");
-            Debug.Log($"[MultiplayerManager] Mengecek 'currentTurnIdx'. Nilainya: {currentTurnIdx}");
-            // -------------------------
             Debug.LogWarning($"Pemain {user.name} mencoba menggunakan {card.name} tapi tidak ditemukan!");
             return;
         }
@@ -938,7 +946,6 @@ public class MultiplayerManager : MonoBehaviour
             uiManager.DisplayPlayerHand(user);
         }
         Debug.Log(user.name + " menggunakan kartu: " + card.cardName);
-
         switch (card.effectType)
         {
             case CardEffectType.AthenaBlessing:
@@ -965,6 +972,9 @@ public class MultiplayerManager : MonoBehaviour
                 break;
             case CardEffectType.OdinWisdom:
                 user.extraDiceRolls += card.intValue;
+                // --- PANGGILAN PENTING ---
+                CheckDiceStatus();
+                // -------------------------
                 if (uiManager != null) uiManager.SetActionText($"{user.name} mendapat {card.intValue} lempar dadu tambahan!");
                 break;
             case CardEffectType.ThorHammer:
@@ -1065,17 +1075,21 @@ public class MultiplayerManager : MonoBehaviour
             callback(null);
             yield break;
         }
+
         currentValidTargets = validTargets;
         currentActorForSelection = user;
         selectedTargetForReverse = null;
         awaitingTargetSelection = true;
         isInReverseMode = true;
         EnterReverseSelectionUI();
+
         while (selectedTargetForReverse == null && isInReverseMode)
         {
             yield return null;
         }
+
         PlayerPawn chosenTarget = null;
+
         if (!isInReverseMode || selectedTargetForReverse == null)
         {
             if (uiManager != null) uiManager.SetActionText("Penggunaan kartu dibatalkan.");
@@ -1088,6 +1102,7 @@ public class MultiplayerManager : MonoBehaviour
             CleanupChoiceUI();
             ExitReverseSelectionUI();
         }
+
         callback(chosenTarget);
     }
 
@@ -1104,8 +1119,7 @@ public class MultiplayerManager : MonoBehaviour
             }
 
             PlayerPawn target = null;
-            yield return StartCoroutine(SelectTargetRoutine(user, validTargets, (chosenPawn) =>
-            {
+            yield return StartCoroutine(SelectTargetRoutine(user, validTargets, (chosenPawn) => {
                 target = chosenPawn;
             }));
 
@@ -1148,8 +1162,7 @@ public class MultiplayerManager : MonoBehaviour
             List<PlayerPawn> validTargets = players.Where(p => p != user && p.immuneToAllNegativeTurns <= 0).ToList();
 
             PlayerPawn target = null;
-            yield return StartCoroutine(SelectTargetRoutine(user, validTargets, (chosenPawn) =>
-            {
+            yield return StartCoroutine(SelectTargetRoutine(user, validTargets, (chosenPawn) => {
                 target = chosenPawn;
             }));
 
@@ -1257,7 +1270,7 @@ public class MultiplayerManager : MonoBehaviour
     #endregion
 
     #region Animations
-    // (Fungsi AnimateSnakeSequence dan AnimateLadderSequence tidak berubah)
+    // (AnimateSnakeSequence & AnimateLadderSequence TIDAK BERUBAH)
     private IEnumerator AnimateSnakeSequence(PlayerPawn player, Tiles startTile, Tiles endTile)
     {
         Vector3 verticalOffset = new Vector3(0, snakeAnimationHeight, 0);
