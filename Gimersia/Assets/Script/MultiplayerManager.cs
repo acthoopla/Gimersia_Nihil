@@ -279,7 +279,16 @@ public class MultiplayerManager : MonoBehaviour
         if (buttonText != null) buttonText.text = "Draw";
 
         // --- FIX DADU 3: Hidupkan dadu SEBELUM game dimulai ---
-        if (physicalDice != null) physicalDice.gameObject.SetActive(true);
+        if (physicalDice != null)
+        {
+            physicalDice.gameObject.SetActive(true);
+
+            // --- TAMBAHAN PENTING DI SINI ---
+            // Tunggu 1 frame agar script Dice.cs sempat menjalankan Start()
+            // untuk mengambil komponen Rigidbody (rb) dan posisi awal.
+            yield return null;
+            // --------------------------------
+        }
         // -----------------------------------------------------
 
         currentTurnIdx = 0;
