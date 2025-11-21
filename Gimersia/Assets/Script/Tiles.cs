@@ -173,7 +173,7 @@ public class Tiles : MonoBehaviour
         return (child != null) ? child.gameObject : null;
     }
 
-    void UpdateTileNumber()
+    public void UpdateTileNumber()
     {
         if (tileNumberText != null)
         {
@@ -181,7 +181,7 @@ public class Tiles : MonoBehaviour
         }
     }
 
-    void UpdateVisualModel()
+    public void UpdateVisualModel()
     {
         if (normalModel != null) normalModel.SetActive(false);
         if (snakeStartModel != null) snakeStartModel.SetActive(false);
