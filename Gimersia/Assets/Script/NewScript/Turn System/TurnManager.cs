@@ -4,18 +4,19 @@ using System.Collections.Generic;
 using UnityEngine;
 
 /// <summary>
-/// TurnManager (SRP)
-/// - Mengelola state machine giliran (turn) pemain
-/// - Berinteraksi via EventBus dan public API (tidak menggerakkan pawn langsung)
-/// - Menjaga batas penggunaan kartu per turn
-/// - Menunggu movement animation selesai (EventBus.MovementFinished)
+/// TurnManager (merged)
+/// - Mengelola state machine giliran (turn) pemain (full featured)
+/// - Menambahkan card-draw (3 pilihan) pada StartTurn dan fase penggunaan kartu (pre/post)
+/// - Mengintegrasikan dengan DiceManager, MovementSystem, NewCardSystem, CardEffectHandler, CombatSystem
+/// - Menunggu movement animation selesai (EventBus.OnMovementFinished)
 /// - Menunggu tile effect selesai (TileEffectSystem harus memanggil NotifyTileResolveComplete)
 /// 
-/// Integrasi:
-/// - DiceManager memanggil TurnManager.OnDiceResult(playerState, roll)
-/// - MovementSystem harus listen ke TurnManager.MoveRequest atau kamu bisa memanggil MovementSystem.MovePlayer(...)
-/// - TileEffectSystem harus listen ke EventBus.OnMovementFinished dan setelah selesai memanggil
-///   TurnManager.Instance.NotifyTileResolveComplete(playerState);
+/// HOOKs (ganti dengan UIManager / animator / subsystems milikmu):
+/// - Card selection UI: ShowCardSelection / WaitForCardChoiceCoroutine
+/// - Card usage UI: ShowHandAndPickCards / WaitForCardUsageCoroutine
+/// - DiceManager.Instance.RequestRollForPlayer(player) harus memanggil OnDiceResult(player, total)
+/// - MovementSystem.Instance.MovePlayerToTileCoroutine(player, targetTile) harus memanggil EventBus.MovementFinished when done
+/// - TileEffectSystem harus memanggil TurnManager.Instance.NotifyTileResolveComplete(player) when finished
 /// </summary>
 [DisallowMultipleComponent]
 public class TurnManager : MonoBehaviour
@@ -40,6 +41,10 @@ public class TurnManager : MonoBehaviour
     [Header("Turn Settings")]
     public int maxCardsPerTurn = 3;
 
+    [Header("Card Settings")]
+    [Tooltip("Jika true, saat StartTurn pemain diberi opsi mengambil 3 kartu random (pilihan 1 dari 3).")]
+    public bool enableStartTurnCardChoice = true;
+
     // runtime
     public List<PlayerState> players = new List<PlayerState>();
     private int currentIndex = 0;
@@ -52,9 +57,15 @@ public class TurnManager : MonoBehaviour
     private bool awaitingMovementFinishForPlayer = false;
     private int lastRequestedTargetTile = -1;
 
+    // dice/roll
+    private int lastRollValue = 0;
+
     // callbacks & timeouts
     public float preMoveTimeout = 10f;   // optional: auto-skip pre-move if player idle
     public float postMoveTimeout = 20f;  // optional: auto-end if player idle
+
+    // Small timings
+    public float smallDelay = 0.12f;
 
     void Awake()
     {
@@ -76,8 +87,7 @@ public class TurnManager : MonoBehaviour
 
     #region Public API
     /// <summary>
-    /// Initialize players list and start the first turn.
-    /// PlayerState objects should already exist on player prefabs.
+    /// Initialize players list and start the turn loop.
     /// </summary>
     public void StartGame(List<PlayerState> playerStates, int startIndex = 0)
     {
@@ -96,6 +106,7 @@ public class TurnManager : MonoBehaviour
 
     /// <summary>
     /// DiceManager harus memanggil ini ketika hasil roll sudah tersedia untuk current player.
+    /// Pastikan DiceManager memanggil TurnManager.Instance.OnDiceResult(player, total)
     /// </summary>
     public void OnDiceResult(PlayerState player, int totalRoll)
     {
@@ -110,13 +121,17 @@ public class TurnManager : MonoBehaviour
             return;
         }
 
-        StartCoroutine(HandleRollAndMove(player, totalRoll));
+        // store last roll value and allow state machine coroutine to proceed
+        lastRollValue = Mathf.Max(1, totalRoll);
+        // Move the state forward by changing it from WaitingForRoll; the RunTurnLoop/HandleRollAndMove expects that
+        // We'll call the handler coroutine right away.
+        StartCoroutine(HandleRollAndMove(player, lastRollValue));
     }
 
     /// <summary>
     /// Dipanggil oleh CardSystem / UI saat player memainkan kartu.
     /// TurnManager hanya track jumlah kartu yang dimainkan agar tidak melebihi maxCardsPerTurn.
-    /// CardSystem tetap eksekusi efek kartu sendiri.
+    /// CardSystem tetap eksekusi efek kartu sendiri (kebanyakan via CardEffectHandler).
     /// </summary>
     public bool TryConsumeCardPlaySlot(PlayerState player)
     {
@@ -141,11 +156,10 @@ public class TurnManager : MonoBehaviour
         if (state == TurnState.ResolveTile && awaitingTileResolve)
         {
             awaitingTileResolve = false;
-            // allow state machine coroutine to continue
+            // state machine coroutine will continue
         }
         else
         {
-            // mungkin tile tidak punya efek, atau sudah ditangani
             awaitingTileResolve = false;
         }
     }
@@ -174,24 +188,45 @@ public class TurnManager : MonoBehaviour
             state = TurnState.StartTurn;
             cardsPlayedThisTurn = 0;
             PlayerState p = currentPlayer;
-            EventBus.TurnStarted(p);
-            // give a frame so subscribers can react (UI)
+
+            // Event: Turn started
+            EventBus.TurnStarted(currentPlayer);
+
+            // HOOK: UI show turn start
+            // UIManager?.SetTurnText($"{p.name} giliran");
+
+            // small frame to let UI update
             yield return null;
+
+            // Optionally give player 3-card choice at start of turn
+            if (enableStartTurnCardChoice)
+            {
+                yield return StartCoroutine(HandleStartTurnCardChoice(p));
+            }
 
             // PRE-ROLL
             state = TurnState.PreRoll;
-            // notify UI to enable roll button via EventBus or direct UI binding
-            // we wait here until OnDiceResult is called by DiceManager / UI
+            // HOOK: enable roll button (UI) or auto roll via DiceManager
+            // If using physical dice, DiceManager will enable physical dice, otherwise you can call RequestRollForPlayer
+
+            // REQUEST ROLL
             state = TurnState.WaitingForRoll;
-            // Wait until OnDiceResult triggers coroutine; we just wait until that finishes
-            // We'll block here by yielding until the roll coroutine completes (handled in HandleRollAndMove)
-            while (state == TurnState.WaitingForRoll)
+            lastRollValue = 0;
+
+            if (DiceManager.Instance != null)
             {
-                yield return null;
+                // HOOK: show dice UI / animate dice ready
+                DiceManager.Instance.RequestRollForPlayer(p);
+            }
+            else
+            {
+                // fallback: simulate immediate roll
+                yield return new WaitForSeconds(0.15f);
+                OnDiceResult(p, UnityEngine.Random.Range(1, 7));
             }
 
-            // After roll+move+resolve+postmove, we will be in EndTurn state; proceed to next player
-            // Wait until EndTurn is reached
+            // Wait — the OnDiceResult will start HandleRollAndMove coroutine and change flow.
+            // We just wait here until state reaches EndTurn (HandleRollAndMove will set it)
             while (state != TurnState.EndTurn && state != TurnState.GameOver)
             {
                 yield return null;
@@ -226,40 +261,31 @@ public class TurnManager : MonoBehaviour
 
         // PRE-MOVE play: allow player to play movement-type cards BEFORE moving
         state = TurnState.PreMovePlay;
-        // In basic mode we allow immediate skip; in extended mode UI may let player play movement cards
-        float startPre = Time.time;
-        bool preMoveDone = false;
-        // We'll give UI a chance to play PreMove cards; external UI should call TryConsumeCardPlaySlot when playing
-        while (!preMoveDone && Time.time - startPre < preMoveTimeout)
-        {
-            // If external system signals pre-move done (via UI button) it should call ContinueAfterPreMove()
-            // For now we'll proceed immediately after small delay to avoid blocking
-            preMoveDone = true;
-            yield return null;
-        }
+
+        // HOOK: show UI for pre-move card usage (player can play movement/buff cards)
+        // We'll wait for a coroutine that lets UI pick cards and apply them.
+        yield return StartCoroutine(HandlePreMoveCardUsage(player, effectiveRoll));
 
         // CALCULATE MOVEMENT
         state = TurnState.CalculatingMove;
         int startTile = player.TileID;
         int targetTile = startTile + effectiveRoll;
 
-        // handle overshoot: bounce back rule
-        if (targetTile == BoardDefaultTotal()) // reaching exact finish -> lose (per GDD)
+        // handle overshoot: bounce back rule or finish handling
+        int boardTotal = BoardDefaultTotal();
+        if (targetTile == boardTotal)
         {
-            // Move to finish tile - MovementSystem should animate
+            // Move to finish tile - MovementSystem should animate; then player loses (finish)
             state = TurnState.Moving;
             lastRequestedTargetTile = targetTile;
             awaitingMovementFinishForPlayer = true;
-            // Notify or call MovementSystem to move player (MovementSystem should call EventBus.MovementFinished when done)
-            // MovementSystem may be accessed via instance or via EventBus; here we just publish a request event via EventBus if you choose
-            // Example: MovementSystem.Instance.RequestMove(player, targetTile);
-            // For decoupling, the project can implement a MovementRequest event; for now, try calling MovementSystem directly if available.
+
             if (MovementSystem.Instance != null)
                 StartCoroutine(MovementSystem.Instance.MovePlayerToTileCoroutine(player, targetTile));
             else
                 Debug.LogWarning("[TurnManager] MovementSystem.Instance not found; make sure MovementSystem exists and subscribes to move requests.");
 
-            // wait for movement finish (EventBus.OnMovementFinished will set awaitingMovementFinishForPlayer to false)
+            // wait for movement finish (EventBus.OnMovementFinished)
             while (awaitingMovementFinishForPlayer)
                 yield return null;
 
@@ -267,37 +293,26 @@ public class TurnManager : MonoBehaviour
             // Now wait for tile resolve to complete (TileEffectSystem must call NotifyTileResolveComplete)
             state = TurnState.ResolveTile;
             awaitingTileResolve = true;
-            // Wait until TileEffectSystem calls NotifyTileResolveComplete
             while (awaitingTileResolve)
                 yield return null;
 
             // Post-move
             state = TurnState.PostMovePlay;
-            // Allow player to play up to remaining card slots for this turn
-            float startPost = Time.time;
-            bool postDone = false;
-            while (!postDone && Time.time - startPost < postMoveTimeout)
-            {
-                // For now we proceed immediately; UI should provide an "End Turn" button which triggers ContinueAfterPostMove()
-                postDone = true;
-                yield return null;
-            }
-
-            // End turn
+            yield return StartCoroutine(HandlePostMoveCardUsage(player));
             state = TurnState.EndTurn;
             yield break;
         }
-        else if (targetTile > BoardDefaultTotal())
+        else if (targetTile > boardTotal)
         {
             // bounce logic
-            int overshoot = targetTile - BoardDefaultTotal();
-            int bounceTarget = BoardDefaultTotal() - overshoot;
+            int overshoot = targetTile - boardTotal;
+            int bounceTarget = boardTotal - overshoot;
 
             // Move to finish tile then bounce back
             state = TurnState.Moving;
             awaitingMovementFinishForPlayer = true;
             if (MovementSystem.Instance != null)
-                StartCoroutine(MovementSystem.Instance.MovePlayerToTileCoroutine(player, BoardDefaultTotal()));
+                StartCoroutine(MovementSystem.Instance.MovePlayerToTileCoroutine(player, boardTotal));
             else
                 Debug.LogWarning("[TurnManager] MovementSystem.Instance not found (bounce step).");
             while (awaitingMovementFinishForPlayer) yield return null;
@@ -315,7 +330,7 @@ public class TurnManager : MonoBehaviour
             while (awaitingTileResolve) yield return null;
 
             state = TurnState.PostMovePlay;
-            yield return null;
+            yield return StartCoroutine(HandlePostMoveCardUsage(player));
             state = TurnState.EndTurn;
             yield break;
         }
@@ -341,13 +356,134 @@ public class TurnManager : MonoBehaviour
 
             // Post-move
             state = TurnState.PostMovePlay;
-            // for now auto-proceed
-            yield return null;
+            yield return StartCoroutine(HandlePostMoveCardUsage(player));
             state = TurnState.EndTurn;
             yield break;
         }
     }
+    #endregion
 
+    #region Card-related Coroutines (hooks for UI)
+    /// <summary>
+    /// Start-turn card choice: show 3 random cards and let player pick 1 to add to hand.
+    /// Uses NewCardSystem.Instance.GetRandomCardSelection(3) and NewCardSystem.Instance.TryAddCardToPlayer(...)
+    /// Replace WaitForCardChoiceSimulation with real UI coroutine.
+    /// </summary>
+    private IEnumerator HandleStartTurnCardChoice(PlayerState player)
+    {
+        if (player == null) yield break;
+        if (NewCardSystem.Instance == null)
+        {
+            yield break;
+        }
+
+        List<NewCardData> choices = NewCardSystem.Instance.GetRandomCardSelection(3);
+        if (choices == null || choices.Count == 0) yield break;
+
+        // HOOK: Show card choice UI and wait for player selection.
+        // Replace the simulation below with UI coroutine that yields until user picks.
+        NewCardData chosen = null;
+        yield return StartCoroutine(WaitForCardChoiceSimulation(choices, (c) => chosen = c));
+
+        if (chosen != null)
+        {
+            // Give chosen card to player (uses cycle = current turn cycle; using 1 for example)
+            NewCardSystem.Instance.TryAddCardToPlayer(player, chosen, /*cycle*/ 1);
+            // HOOK: UIManager.DisplayPlayerHand(player)
+        }
+        yield return null;
+    }
+
+    /// <summary>
+    /// Pre-move card usage: allow player to play movement-type cards that modify roll or movement.
+    /// This coroutine will call CardEffectHandler.ApplyCardEffect for each chosen card in order left->right.
+    /// It expects UI to call TurnManager.TryConsumeCardPlaySlot when a card is played (server-side check).
+    /// </summary>
+    private IEnumerator HandlePreMoveCardUsage(PlayerState player, int effectiveRoll)
+    {
+        // If player has no cards or Card system missing, early exit
+        if (player == null || NewCardSystem.Instance == null || CardEffectHandler.Instance == null)
+            yield break;
+
+        // HOOK: Show player's hand UI and allow selecting up to remaining slots
+        List<NewCardSystem.PlayerCardInstance> chosen = null;
+        yield return StartCoroutine(WaitForCardUsageSimulation(player, maxCardsPerTurn - cardsPlayedThisTurn, (list) => chosen = list));
+
+        if (chosen != null && chosen.Count > 0)
+        {
+            foreach (var pci in chosen)
+            {
+                // check slot consumption
+                if (!TryConsumeCardPlaySlot(player))
+                {
+                    Debug.Log("[TurnManager] Card play slot exceeded; skipping additional cards.");
+                    break;
+                }
+
+                // Execute card effect which may modify effectiveRoll (ref)
+                CardEffectHandler.Instance.ApplyCardEffect(player, pci.cardData, ref effectiveRoll);
+
+                // Remove card from player's hand if necessary via NewCardSystem
+                NewCardSystem.Instance.TryRemoveCardFromPlayer(player, pci);
+
+                // small buffer for visuals
+                yield return new WaitForSeconds(smallDelay);
+            }
+
+            // HOOK: UIManager.DisplayPlayerHand(player);
+        }
+    }
+
+    /// <summary>
+    /// Post-move card usage: similar to pre-move, allow usage of remaining cards (post-move)
+    /// </summary>
+    private IEnumerator HandlePostMoveCardUsage(PlayerState player)
+    {
+        if (player == null || NewCardSystem.Instance == null || CardEffectHandler.Instance == null)
+            yield break;
+
+        List<NewCardSystem.PlayerCardInstance> chosen = null;
+        yield return StartCoroutine(WaitForCardUsageSimulation(player, maxCardsPerTurn - cardsPlayedThisTurn, (list) => chosen = list));
+
+        if (chosen != null && chosen.Count > 0)
+        {
+            foreach (var pci in chosen)
+            {
+                if (!TryConsumeCardPlaySlot(player))
+                {
+                    Debug.Log("[TurnManager] Card play slot exceeded; skipping additional cards.");
+                    break;
+                }
+                int dummyRoll = 0;
+                CardEffectHandler.Instance.ApplyCardEffect(player, pci.cardData, ref dummyRoll);
+                NewCardSystem.Instance.TryRemoveCardFromPlayer(player, pci);
+                yield return new WaitForSeconds(smallDelay);
+            }
+            // HOOK: UIManager.DisplayPlayerHand(player);
+        }
+    }
+
+    #region Simulated UI coroutines (replace with actual UI)
+    // These simulate selection/dismissal so the flow runs without a UI. Replace them with real UI waiting coroutines.
+
+    private IEnumerator WaitForCardChoiceSimulation(List<NewCardData> choices, Action<NewCardData> callback)
+    {
+        // simulation: auto pick first after delay
+        yield return new WaitForSeconds(0.35f);
+        NewCardData pick = (choices != null && choices.Count > 0) ? choices[0] : null;
+        callback?.Invoke(pick);
+        yield break;
+    }
+
+    private IEnumerator WaitForCardUsageSimulation(PlayerState player, int maxPick, Action<List<NewCardSystem.PlayerCardInstance>> callback)
+    {
+        // simulation: by default pick nothing and continue. Replace with actual UI selection.
+        yield return new WaitForSeconds(0.15f);
+        callback?.Invoke(new List<NewCardSystem.PlayerCardInstance>());
+        yield break;
+    }
+
+    #endregion
     #endregion
 
     #region Movement / Tile callbacks
@@ -364,8 +500,16 @@ public class TurnManager : MonoBehaviour
         // clear waiting flag
         awaitingMovementFinishForPlayer = false;
 
-        // Let other systems know player landed (TileEffectSystem should be subscribed to this EventBus event)
-        EventBus.TileLanded(player, BoardManagerInstance()?.GetTileByID(tileID));
+        // Let other systems know player landed (TileEffectSystem should be subscribed to EventBus.OnMovementFinished)
+        try
+        {
+            var bm = BoardManagerInstance();
+            if (bm != null)
+                EventBus.TileLanded(player, bm.GetTileByID(tileID));
+            else
+                EventBus.TileLanded(player, null);
+        }
+        catch { }
     }
 
     private void HandlePlayerDied(PlayerState player)
@@ -374,13 +518,11 @@ public class TurnManager : MonoBehaviour
         {
             // When current player died mid-turn, end the turn immediately
             Debug.Log($"[TurnManager] Current player {player.gameObject.name} died. Ending their turn.");
-            // set state so the RunTurnLoop moves on
             state = TurnState.EndTurn;
         }
         else
         {
             // If some other player died, remove from players list gracefully (optional)
-            // We won't remove here to avoid modifying collection while enumerating; leave game flow to cleanup elsewhere
             Debug.Log($"[TurnManager] Player died: {player.gameObject.name}");
         }
     }
@@ -389,9 +531,8 @@ public class TurnManager : MonoBehaviour
     #region Helpers
     private int BoardDefaultTotal()
     {
-        // default 100, but if you want dynamic read from BoardManager
         var bm = BoardManagerInstance();
-        return (bm != null) ? bm.totalTiles : 100;
+        return (bm != null) ? bm.totalTilesInBoard : 100;
     }
 
     private BoardManager BoardManagerInstance()
@@ -416,7 +557,6 @@ public class TurnManager : MonoBehaviour
     {
         if (players == null || players.Count == 0) return;
 
-        // advance index circularly; skip dead/winner players if TurnManager doesn't want them
         int attempts = 0;
         do
         {
@@ -425,8 +565,6 @@ public class TurnManager : MonoBehaviour
             if (attempts > players.Count + 5) break;
         }
         while (players[currentIndex].IsDead); // skip dead players
-
-        // Reset per-turn flags if cycle restarted externally (TurnManager will call ResetTemporaryStatus via PlayerState if needed)
     }
     #endregion
 

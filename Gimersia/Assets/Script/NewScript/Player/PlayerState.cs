@@ -6,6 +6,12 @@ using UnityEngine;
 /// PlayerState: menyimpan state gameplay seorang pemain.
 /// - SRP: hanya menyimpan data & helper operation (take damage, add/remove card, flags)
 /// - Tidak melakukan movement, UI, atau turn logic.
+/// 
+/// Tambahan: menyediakan backward-compatible aliases:
+/// - pawn (public field)
+/// - heldCards (property yang membungkus hand)
+/// - HasDoubleEdge (property untuk efek double edge)
+/// 
 /// </summary>
 [DisallowMultipleComponent]
 public class PlayerState : MonoBehaviour
@@ -24,6 +30,21 @@ public class PlayerState : MonoBehaviour
 
     [Tooltip("Kartu yang sedang dipegang pemain")]
     public List<NewCardData> hand = new List<NewCardData>();
+
+    // --- BACKWARD-COMPATIBILITY: 'heldCards' digunakan oleh beberapa sistem lama
+    //   Ini adalah property yang langsung membungkus 'hand' sehingga referensi lama tetap valid.
+    public List<NewCardData> heldCards
+    {
+        get
+        {
+            if (hand == null) hand = new List<NewCardData>();
+            return hand;
+        }
+        set
+        {
+            hand = value ?? new List<NewCardData>();
+        }
+    }
 
     [Header("Temporary Buff / Modifiers")]
     [Tooltip("Flat defense yang berasal dari kartu buff (bersifat additive).")]
@@ -48,6 +69,11 @@ public class PlayerState : MonoBehaviour
     public int TileID = 1;
     public int extraDiceRolls = 0;
 
+    // ----- Pawn reference (backward-compatible) -----
+    [Header("References (Compatibility)")]
+    [Tooltip("Referensi Pawn/Avatar pemain (dipakai oleh sistem visual/anim/etc).")]
+    public NewPlayerPawn pawn;
+
     // Event untuk perubahan status (internal convenience)
     public event Action<PlayerState> OnStateChanged;
 
@@ -55,9 +81,21 @@ public class PlayerState : MonoBehaviour
     public bool IsDead => currentHP <= 0;
     public bool IsHandFull => hand.Count >= maxHandSize;
 
+    // Backing field untuk efek 'Double Edge' (tidak ada sebelumnya — ditambahkan untuk kompatibilitas)
+    [SerializeField, Tooltip("Flag efek DoubleEdge (compatibility).")]
+    private bool hasDoubleEdge = false;
+
+    // Backward-compatible property (nama persis seperti yang dipanggil di beberapa script)
+    public bool HasDoubleEdge
+    {
+        get => hasDoubleEdge;
+        set => hasDoubleEdge = value;
+    }
+
     void Awake()
     {
         currentHP = maxHP;
+        if (hand == null) hand = new List<NewCardData>();
     }
 
     public void NotifyStateChanged() => OnStateChanged?.Invoke(this);

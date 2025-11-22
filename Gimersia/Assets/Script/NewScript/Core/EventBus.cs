@@ -21,6 +21,7 @@ public static class EventBus
     public static event Action<PlayerState, int> OnDamageTaken;                 // (player, amount)
     public static event Action<PlayerState, int, string> OnDamageTakenDetailed; // (player, amount, source)
     public static event Action<PlayerState> OnPlayerDied;
+    public static event Action<PlayerState, int, Tiles> PlayerAttackBoss;
 
     // Turn System
     public static event Action<PlayerState> OnTurnStarted;
@@ -68,4 +69,8 @@ public static class EventBus
     // Card drawn
     public static void CardDrawn(PlayerState p)
         => OnCardDrawn?.Invoke(p);
+
+    // player attack
+    public static void PlayerAttackBossEvent(PlayerState p, int dmg, Tiles t)
+    => PlayerAttackBoss?.Invoke(p, dmg, t);
 }

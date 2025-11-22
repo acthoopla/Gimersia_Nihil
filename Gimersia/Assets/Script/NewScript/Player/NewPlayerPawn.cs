@@ -19,6 +19,7 @@ public class NewPlayerPawn : MonoBehaviour
     public PlayerState playerState; // referensi; jika null, coba GetComponent di Awake
     public GameObject reversedBadge;
     public Renderer bodyRenderer;
+    public Animator animator;
 
     [Header("Movement tuning")]
     public float stepSpeed = 5f;        // units per second (move)

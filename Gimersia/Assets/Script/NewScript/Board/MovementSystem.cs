@@ -85,6 +85,7 @@ public class MovementSystem : MonoBehaviour
         if (pawnComp != null)
         {
             MethodInfo mi = pawnComp.GetType().GetMethod("MoveToTile", BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
+            //MethodInfo mi = t.GetMethod("OnHandChanged", BindingFlags.Public | BindingFlags.Instance, null, Type.EmptyTypes, null);
             IEnumerator co = null;
             if (mi != null)
             {
@@ -234,13 +235,13 @@ public class MovementSystem : MonoBehaviour
             else
             {
                 // fallback: try direct call if types match
-                EventBus.MovementFinished((dynamic)playerStateObj, targetTile);
+                InvokeEventBus_MovementFinished(playerStateObj, targetTile);
             }
         }
         catch
         {
             // ignore
-            try { EventBus.MovementFinished((dynamic)playerStateObj, targetTile); } catch { }
+            try { InvokeEventBus_MovementFinished(playerStateObj, targetTile); } catch { }
         }
     }
 
@@ -292,6 +293,37 @@ public class MovementSystem : MonoBehaviour
         // create delegate of type matching parameter if possible, otherwise return provider directly
         // This is a best-effort approach. If the target method expects a concrete delegate type, reflection invocation will attempt to accept a compatible delegate.
         return provider;
+    }
+
+    // helper untuk memanggil EventBus.MovementFinished tanpa dynamic
+    private void InvokeEventBus_MovementFinished(object playerStateObj, int tileID)
+    {
+        if (playerStateObj == null) return;
+
+        // coba konversi ke PlayerState jika mungkin
+        PlayerState ps = playerStateObj as PlayerState;
+        if (ps != null)
+        {
+            // langsung panggil strongly-typed
+            try { EventBus.MovementFinished(ps, tileID); return; } catch { /* fallback ke reflection */ }
+        }
+
+        // fallback via refleksi: cari overload MovementFinished(obj, int)
+        try
+        {
+            MethodInfo mi = typeof(EventBus).GetMethod("MovementFinished", BindingFlags.Public | BindingFlags.Static);
+            if (mi != null)
+            {
+                // cari parameter type
+                var pars = mi.GetParameters();
+                if (pars.Length == 2)
+                {
+                    // invoke; mi expects (PlayerState, int) in typical case -> still ok to pass playerStateObj if same runtime type
+                    mi.Invoke(null, new object[] { playerStateObj, tileID });
+                }
+            }
+        }
+        catch { /* swallow */ }
     }
 
     private GameObject ExtractGameObject(object obj)

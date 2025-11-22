@@ -22,7 +22,7 @@ public class BoardManager : MonoBehaviour
 {
     [Header("Board Settings")]
     [Tooltip("Total tile pada board (default 100 untuk 10x10)")]
-    public int totalTiles = 100;
+    public int totalTilesInBoard = 100;
 
     [Tooltip("Auto find Tiles on Start (jika false, isi tiles manual di inspector)")]
     public bool autoFindTiles = true;
@@ -127,7 +127,7 @@ public class BoardManager : MonoBehaviour
     {
         if (row <= 0) return new List<Tiles>();
         int start = (row - 1) * rowWidth + 1;
-        int end = Mathf.Min(totalTiles, row * rowWidth);
+        int end = Mathf.Min(totalTilesInBoard, row * rowWidth);
         List<Tiles> result = new List<Tiles>();
         for (int i = start; i <= end; i++)
         {
@@ -265,6 +265,19 @@ public class BoardManager : MonoBehaviour
         {
             Debug.Log("[BoardManager] TileID validation OK.");
         }
+    }
+
+    public int GetRowForTile(int tileID)
+    {
+        if (tileID <= 0) return 0;
+        // asumsikan board 10x10, row index 1..10
+        return ((tileID - 1) / 10) + 1;
+    }
+
+    public int totalTiles
+    {
+        get => totalTilesInBoard;
+        set => totalTilesInBoard = value;
     }
     #endregion
 }

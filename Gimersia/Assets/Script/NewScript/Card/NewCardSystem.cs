@@ -195,18 +195,111 @@ public class NewCardSystem : MonoBehaviour
 
     private void TryNotifyHandChanged(object playerObj)
     {
-        if (playerObj == null) return;
+        /*if (playerObj == null) return;
         Type t = playerObj.GetType();
         var mi = t.GetMethod("OnHandChanged", BindingFlags.Public | BindingFlags.Instance);
         if (mi != null)
         {
             try { mi.Invoke(playerObj, null); return; } catch { }
-        }
+        }*/
+        var t = playerObj.GetType();
+        var mi = t.GetMethod("OnHandChanged", BindingFlags.Public | BindingFlags.Instance, null, Type.EmptyTypes, null);
+        mi?.Invoke(playerObj, null);
         var notify = t.GetMethod("NotifyStateChanged", BindingFlags.Public | BindingFlags.Instance);
         if (notify != null)
         {
             try { notify.Invoke(playerObj, null); } catch { }
         }
+    }
+
+    // *** Perbaikan di sini: TryRemoveCardFromPlayer sekarang mendukung PlayerState yang menyimpan NewCardData (List<NewCardData>)
+    // serta kasus List<PlayerCardInstance>.
+    public bool TryRemoveCardFromPlayer(PlayerState player, PlayerCardInstance pci)
+    {
+        if (player == null || pci == null) return false;
+
+        // 1) coba akses heldCards sebagai List<PlayerCardInstance> via reflection (field or property)
+        Type t = player.GetType();
+        var pf = t.GetField("heldCards", BindingFlags.Public | BindingFlags.Instance);
+        if (pf != null && pf.FieldType.IsGenericType)
+        {
+            var arg = pf.FieldType.GetGenericArguments()[0];
+            if (arg == typeof(PlayerCardInstance))
+            {
+                var list = pf.GetValue(player) as List<PlayerCardInstance>;
+                if (list == null) return false;
+                bool removed = list.Remove(pci);
+                if (removed) TryNotifyHandChanged(player);
+                return removed;
+            }
+            else if (arg == typeof(NewCardData))
+            {
+                // Player stores raw NewCardData — remove the underlying cardData
+                var list = pf.GetValue(player) as List<NewCardData>;
+                if (list == null) return false;
+                bool removed = list.Remove(pci.cardData);
+                if (removed) TryNotifyHandChanged(player);
+                return removed;
+            }
+        }
+
+        // 2) try property 'heldCards' as well
+        var pp = t.GetProperty("heldCards", BindingFlags.Public | BindingFlags.Instance);
+        if (pp != null && pp.PropertyType.IsGenericType)
+        {
+            var arg = pp.PropertyType.GetGenericArguments()[0];
+            if (arg == typeof(PlayerCardInstance))
+            {
+                var list = pp.GetValue(player) as List<PlayerCardInstance>;
+                if (list == null) return false;
+                bool removed = list.Remove(pci);
+                if (removed) TryNotifyHandChanged(player);
+                return removed;
+            }
+            else if (arg == typeof(NewCardData))
+            {
+                var list = pp.GetValue(player) as List<NewCardData>;
+                if (list == null) return false;
+                bool removed = list.Remove(pci.cardData);
+                if (removed) TryNotifyHandChanged(player);
+                return removed;
+            }
+        }
+
+        // 3) fallback: try internal registry mapping object->List<PlayerCardInstance>
+        if (internalHands.TryGetValue(player, out List<PlayerCardInstance> internalList))
+        {
+            bool removed2 = internalList.Remove(pci);
+            if (removed2) TryNotifyHandChanged(player);
+            return removed2;
+        }
+
+        // 4) as last resort, try to search player's public 'hand' or 'hand' list of NewCardData
+        var pfHand = t.GetField("hand", BindingFlags.Public | BindingFlags.Instance);
+        if (pfHand != null && pfHand.FieldType.IsGenericType && pfHand.FieldType.GetGenericArguments()[0] == typeof(NewCardData))
+        {
+            var list = pfHand.GetValue(player) as List<NewCardData>;
+            if (list != null)
+            {
+                bool removed = list.Remove(pci.cardData);
+                if (removed) TryNotifyHandChanged(player);
+                return removed;
+            }
+        }
+
+        var ppHand = t.GetProperty("hand", BindingFlags.Public | BindingFlags.Instance);
+        if (ppHand != null && ppHand.PropertyType.IsGenericType && ppHand.PropertyType.GetGenericArguments()[0] == typeof(NewCardData))
+        {
+            var list = ppHand.GetValue(player) as List<NewCardData>;
+            if (list != null)
+            {
+                bool removed = list.Remove(pci.cardData);
+                if (removed) TryNotifyHandChanged(player);
+                return removed;
+            }
+        }
+
+        return false;
     }
 
     #endregion

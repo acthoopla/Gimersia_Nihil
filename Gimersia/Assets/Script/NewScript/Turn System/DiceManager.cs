@@ -4,10 +4,11 @@ using System.Reflection;
 using UnityEngine;
 
 /// <summary>
-/// DiceManager (fixed)
-/// - Does not reference undefined PhysicalDice type; instead uses GameObject prefab and reflection to find a dice component if present.
-/// - WaitForRollToStop no longer uses yield inside try/catch patterns incorrectly.
-/// - Calls TurnManager.Instance.OnDiceResult when done.
+/// DiceManager
+/// - Singleton
+/// - Mendukung physical dice prefab (opsional) atau simulated roll
+/// - Tidak menggunakan 'dynamic'
+/// - Mengirim hasil ke TurnManager via reflection-safe helper
 /// </summary>
 [DisallowMultipleComponent]
 public class DiceManager : MonoBehaviour
@@ -15,7 +16,6 @@ public class DiceManager : MonoBehaviour
     public static DiceManager Instance { get; private set; }
 
     [Header("Dice Prefabs (optional)")]
-    [Tooltip("If you have a physical dice prefab, assign its GameObject here. Otherwise simulated rolls will be used.")]
     public GameObject physicalDicePrefab;
     public GameObject followerDicePrefab;
 
@@ -25,7 +25,7 @@ public class DiceManager : MonoBehaviour
 
     private System.Random rng;
 
-    // runtime dice objects if instantiated
+    // instantiated dice objects (optional)
     private GameObject activeDiceObj;
     private GameObject activeFollowerObj;
 
@@ -37,127 +37,77 @@ public class DiceManager : MonoBehaviour
         rng = (rngSeed != 0) ? new System.Random(rngSeed) : null;
     }
 
-    #region Public API
-
-    public void RequestRollForPlayer(object playerStateObj)
+    /// <summary>
+    /// Public API — request roll for a player (PlayerState)
+    /// </summary>
+    public void RequestRollForPlayer(PlayerState player)
     {
-        if (playerStateObj == null)
+        if (player == null)
         {
-            Debug.LogWarning("[DiceManager] RequestRollForPlayer null");
+            Debug.LogWarning("[DiceManager] RequestRollForPlayer: player null");
             return;
         }
-        StartCoroutine(RollRoutine(playerStateObj));
+        StartCoroutine(RollRoutine(player));
     }
 
-    /// <summary>
-    /// Waits for a single die result. If a physical dice object with a compatible component exists, it will attempt to use it via reflection.
-    /// Otherwise returns simulated result.
-    /// </summary>
-    public IEnumerator WaitForRollToStop(Action<int> callback)
+    private IEnumerator RollRoutine(PlayerState player)
     {
-        // If an active dice object exists and has a method WaitForRollToStop(Action<int>), we'll try to call it.
-        if (activeDiceObj != null)
+        if (player == null)
         {
-            Component diceComp = activeDiceObj.GetComponent<MonoBehaviour>();
-            if (diceComp != null)
-            {
-                MethodInfoWaitForRoll(diceComp, callback);
-                // the method call above will start its own coroutine via reflection if possible.
-                // If not invoked, we fallback below.
-                yield break;
-            }
-        }
-
-        // fallback: simulated
-        int val = SimulateSingleDieRoll();
-        callback?.Invoke(val);
-        yield break;
-    }
-
-    #endregion
-
-    #region Internal
-
-    private IEnumerator RollRoutine(object playerStateObj)
-    {
-        if (TurnManager.Instance == null)
-        {
-            Debug.LogError("[DiceManager] TurnManager not found.");
             yield break;
         }
 
-        // Determine if dual-dice requested by reading playerState.extraDiceRolls with reflection
-        int extraDice = GetPlayerExtraDiceRolls(playerStateObj);
+        // Check whether player has extra dice (reflection tolerant)
+        int extraDice = GetPlayerExtraDiceRolls(player);
         bool useDual = extraDice > 0;
 
-        // If a physical dice prefab is assigned, try to instantiate / use it
+        // If physical dice prefab assigned, try to use it
         if (physicalDicePrefab != null)
         {
             if (activeDiceObj == null)
             {
                 activeDiceObj = Instantiate(physicalDicePrefab);
+                activeDiceObj.SetActive(false);
             }
             if (useDual && followerDicePrefab != null && activeFollowerObj == null)
             {
                 activeFollowerObj = Instantiate(followerDicePrefab);
+                activeFollowerObj.SetActive(false);
             }
 
-            // try to run WaitForRollToStop on dice component(s) via reflection
+            activeDiceObj.SetActive(true);
+            if (activeFollowerObj != null) activeFollowerObj.SetActive(useDual);
+
             int roll1 = 0, roll2 = 0;
-            bool succeeded1 = false, succeeded2 = false;
 
-            Component diceComp = activeDiceObj.GetComponent<MonoBehaviour>();
-            if (diceComp != null)
-            {
-                // Try to call StartRoll if present (non-blocking)
-                TryCallMethodIfExists(diceComp, "StartRoll");
+            // StartRoll if available
+            TryCallMethodIfExistsOnComponent(activeDiceObj, "StartRoll");
+            if (activeFollowerObj != null) TryCallMethodIfExistsOnComponent(activeFollowerObj, "StartRoll");
 
-                // Now attempt to obtain result via WaitForRollToStop that accepts Action<int>
-                IEnumerator waitCo = BuildWaitCoroutineForDice(diceComp, (r) => { roll1 = r; succeeded1 = true; });
-                if (waitCo != null) yield return StartCoroutine(waitCo);
-                else
-                {
-                    roll1 = SimulateSingleDieRoll();
-                    succeeded1 = true;
-                }
-            }
-            else
-            {
-                roll1 = SimulateSingleDieRoll();
-                succeeded1 = true;
-            }
-
+            // Wait for dice results via BuildWaitCoroutineForDice (safe)
+            yield return StartCoroutine(BuildWaitCoroutineForDice(activeDiceObj, (r) => roll1 = r));
             if (useDual)
             {
                 if (activeFollowerObj != null)
-                {
-                    Component followerComp = activeFollowerObj.GetComponent<MonoBehaviour>();
-                    TryCallMethodIfExists(followerComp, "StartRoll");
-                    IEnumerator waitCo2 = BuildWaitCoroutineForDice(followerComp, (r) => { roll2 = r; succeeded2 = true; });
-                    if (waitCo2 != null) yield return StartCoroutine(waitCo2);
-                    else { roll2 = SimulateSingleDieRoll(); succeeded2 = true; }
-                }
+                    yield return StartCoroutine(BuildWaitCoroutineForDice(activeFollowerObj, (r) => roll2 = r));
                 else
-                {
                     roll2 = SimulateSingleDieRoll();
-                    succeeded2 = true;
-                }
             }
 
             int total = roll1 + roll2;
-            // deliver result
-            TurnManager.Instance.OnDiceResult((dynamic)playerStateObj, total);
+            // deliver
+            InvokeTurnManagerOnDiceResult(player, total);
             yield break;
         }
 
-        // No physical dice prefab -> simulated
+        // No physical dice: simulated
         if (allowSimulatedRoll)
         {
             int r1 = SimulateSingleDieRoll();
             int r2 = useDual ? SimulateSingleDieRoll() : 0;
             int total = r1 + r2;
             yield return new WaitForSeconds(0.15f);
-            TurnManager.Instance.OnDiceResult((dynamic)playerStateObj, total);
+            InvokeTurnManagerOnDiceResult(player, total);
             yield break;
         }
 
@@ -165,73 +115,53 @@ public class DiceManager : MonoBehaviour
         yield break;
     }
 
-    #endregion
-
-    #region Reflection helpers
-
-    private void MethodInfoWaitForRoll(Component diceComp, Action<int> callback)
+    /// <summary>
+    /// Coroutine helper that will call the dice component's WaitForRollToStop(Action<int>) if available.
+    /// Uses reflection safely (invocation done inside try/catch but yields outside).
+    /// </summary>
+    private IEnumerator BuildWaitCoroutineForDice(GameObject diceObj, Action<int> callback)
     {
-        if (diceComp == null) return;
-        var mi = diceComp.GetType().GetMethod("WaitForRollToStop", BindingFlags.Public | BindingFlags.Instance);
-        if (mi != null)
+        if (diceObj == null)
         {
-            // If method returns IEnumerator and takes Action<int>, we can StartCoroutine on it
-            try
-            {
-                var ret = mi.Invoke(diceComp, new object[] { callback });
-                if (ret is IEnumerator co)
-                {
-                    StartCoroutine(co);
-                    return;
-                }
-            }
-            catch (Exception ex)
-            {
-                Debug.LogWarning("[DiceManager] reflection WaitForRollToStop failed: " + ex.Message);
-            }
+            callback?.Invoke(SimulateSingleDieRoll());
+            yield break;
         }
 
-        // fallback: simulate and invoke callback
-        callback?.Invoke(SimulateSingleDieRoll());
-    }
-
-    private IEnumerator BuildWaitCoroutineForDice(Component diceComp, Action<int> callback)
-    {
+        Component diceComp = diceObj.GetComponent<MonoBehaviour>();
         if (diceComp == null)
         {
             callback?.Invoke(SimulateSingleDieRoll());
             yield break;
         }
 
-        var mi = diceComp.GetType().GetMethod("WaitForRollToStop", BindingFlags.Public | BindingFlags.Instance);
+        MethodInfo mi = diceComp.GetType().GetMethod("WaitForRollToStop", BindingFlags.Public | BindingFlags.Instance);
         if (mi == null)
         {
-            // no such method: simulate
+            // no such method
             callback?.Invoke(SimulateSingleDieRoll());
             yield break;
         }
 
         object ret = null;
-        Exception invokeException = null;
+        Exception invokeEx = null;
 
-        // Invoke inside try/catch but DO NOT yield inside the try/catch
+        // Invoke but DO NOT yield inside try/catch
         try
         {
             ret = mi.Invoke(diceComp, new object[] { callback });
         }
         catch (Exception ex)
         {
-            invokeException = ex;
+            invokeEx = ex;
         }
 
-        if (invokeException != null)
+        if (invokeEx != null)
         {
-            Debug.LogWarning("[DiceManager] BuildWaitCoroutineForDice invoke failed: " + invokeException.Message);
+            Debug.LogWarning("[DiceManager] WaitForRollToStop invoke failed: " + invokeEx.Message);
             callback?.Invoke(SimulateSingleDieRoll());
             yield break;
         }
 
-        // Now handle return value OUTSIDE of try/catch so yields are allowed
         if (ret is IEnumerator co)
         {
             yield return StartCoroutine(co);
@@ -239,26 +169,11 @@ public class DiceManager : MonoBehaviour
         }
         else
         {
-            // if it returned non-coroutine, fallback to simulate and invoke callback
+            // the invoked method didn't return IEnumerator — fallback simulate
             callback?.Invoke(SimulateSingleDieRoll());
             yield break;
         }
     }
-
-    private void TryCallMethodIfExists(Component comp, string methodName)
-    {
-        if (comp == null) return;
-        var mi = comp.GetType().GetMethod(methodName, BindingFlags.Public | BindingFlags.Instance);
-        if (mi != null)
-        {
-            try { mi.Invoke(comp, null); }
-            catch { }
-        }
-    }
-
-    #endregion
-
-    #region Utilities
 
     private int SimulateSingleDieRoll()
     {
@@ -266,21 +181,78 @@ public class DiceManager : MonoBehaviour
         return UnityEngine.Random.Range(1, 7);
     }
 
-    private int GetPlayerExtraDiceRolls(object playerStateObj)
+    private void TryCallMethodIfExistsOnComponent(GameObject go, string methodName)
     {
-        if (playerStateObj == null) return 0;
-        Type t = playerStateObj.GetType();
-        var fi = t.GetField("extraDiceRolls", BindingFlags.Public | BindingFlags.Instance);
-        if (fi != null) { try { return Convert.ToInt32(fi.GetValue(playerStateObj)); } catch { } }
-        var pi = t.GetProperty("extraDiceRolls", BindingFlags.Public | BindingFlags.Instance);
-        if (pi != null) { try { return Convert.ToInt32(pi.GetValue(playerStateObj)); } catch { } }
-        // try other common names
-        fi = t.GetField("extraDice", BindingFlags.Public | BindingFlags.Instance);
-        if (fi != null) { try { return Convert.ToInt32(fi.GetValue(playerStateObj)); } catch { } }
-        pi = t.GetProperty("extraDice", BindingFlags.Public | BindingFlags.Instance);
-        if (pi != null) { try { return Convert.ToInt32(pi.GetValue(playerStateObj)); } catch { } }
+        if (go == null || string.IsNullOrEmpty(methodName)) return;
+        Component comp = go.GetComponent<MonoBehaviour>();
+        if (comp == null) return;
+        MethodInfo mi = comp.GetType().GetMethod(methodName, BindingFlags.Public | BindingFlags.Instance);
+        if (mi != null)
+        {
+            try { mi.Invoke(comp, null); }
+            catch { }
+        }
+    }
+
+    private int GetPlayerExtraDiceRolls(PlayerState player)
+    {
+        // prefer property/field if present
+        try
+        {
+            Type t = player.GetType();
+            var fi = t.GetField("extraDiceRolls", BindingFlags.Public | BindingFlags.Instance);
+            if (fi != null) return Convert.ToInt32(fi.GetValue(player));
+            var pi = t.GetProperty("extraDiceRolls", BindingFlags.Public | BindingFlags.Instance);
+            if (pi != null) return Convert.ToInt32(pi.GetValue(player));
+            // fallback other common names
+            fi = t.GetField("extraDice", BindingFlags.Public | BindingFlags.Instance);
+            if (fi != null) return Convert.ToInt32(fi.GetValue(player));
+            pi = t.GetProperty("extraDice", BindingFlags.Public | BindingFlags.Instance);
+            if (pi != null) return Convert.ToInt32(pi.GetValue(player));
+        }
+        catch { }
         return 0;
     }
 
-    #endregion
+    /// <summary>
+    /// Invoke TurnManager.OnDiceResult in a reflection-safe way (no dynamic).
+    /// </summary>
+    private void InvokeTurnManagerOnDiceResult(PlayerState player, int total)
+    {
+        if (TurnManager.Instance == null)
+        {
+            Debug.LogWarning("[DiceManager] TurnManager.Instance is null");
+            return;
+        }
+
+        Type tmType = TurnManager.Instance.GetType();
+        // try strongly-typed method first: OnDiceResult(PlayerState, int)
+        MethodInfo miStrong = tmType.GetMethod("OnDiceResult", new Type[] { typeof(PlayerState), typeof(int) });
+        if (miStrong != null)
+        {
+            try { miStrong.Invoke(TurnManager.Instance, new object[] { player, total }); return; }
+            catch (Exception ex) { Debug.LogWarning("[DiceManager] invoke OnDiceResult failed: " + ex.Message); }
+        }
+
+        // fallback: find method named OnDiceResult with 2 params
+        try
+        {
+            MethodInfo mi = tmType.GetMethod("OnDiceResult", BindingFlags.Public | BindingFlags.Instance);
+            if (mi != null)
+            {
+                var pars = mi.GetParameters();
+                if (pars.Length == 2)
+                {
+                    mi.Invoke(TurnManager.Instance, new object[] { player, total });
+                    return;
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            Debug.LogWarning("[DiceManager] fallback invoke OnDiceResult failed: " + ex.Message);
+        }
+
+        Debug.LogWarning("[DiceManager] Could not deliver dice result to TurnManager.");
+    }
 }
