@@ -84,8 +84,14 @@ public class MovementSystem : MonoBehaviour
         // Attempt to call MoveToTile on pawnComp. Use safe pattern: prepare IEnumerator outside try/catch
         if (pawnComp != null)
         {
-            MethodInfo mi = pawnComp.GetType().GetMethod("MoveToTile", BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
-            //MethodInfo mi = t.GetMethod("OnHandChanged", BindingFlags.Public | BindingFlags.Instance, null, Type.EmptyTypes, null);
+            // prefer overloads: (int, delegate) -> (int, Vector3) -> (int)
+            MethodInfo mi = null;
+            Type pawnType = pawnComp.GetType();
+            // try exact: (int, delegate)
+            mi = FindMethodMatching(pawnType, "MoveToTile", new Type[] { typeof(int), typeof(Func<int, Vector3>) });
+            if (mi == null) mi = FindMethodMatching(pawnType, "MoveToTile", new Type[] { typeof(int), typeof(Vector3) });
+            if (mi == null) mi = FindMethodMatching(pawnType, "MoveToTile", new Type[] { typeof(int) });
+            //MethodInfo mi = pawnComp.GetType().GetMethod("MoveToTile", BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
             IEnumerator co = null;
             if (mi != null)
             {
@@ -127,7 +133,14 @@ public class MovementSystem : MonoBehaviour
         // Attempt TeleportToTile similarly (only if not moved)
         if (!moved && pawnComp != null)
         {
-            MethodInfo miT = pawnComp.GetType().GetMethod("TeleportToTile", BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
+            // prefer overloads: (int, delegate) -> (int, Vector3) -> (int)
+            MethodInfo miT = null;
+            Type pawnType = pawnComp.GetType();
+            // try exact: (int, delegate)
+            miT = FindMethodMatching(pawnType, "TeleportToTile", new Type[] { typeof(int), typeof(Func<int, Vector3>) });
+            if (miT == null) miT = FindMethodMatching(pawnType, "TeleportToTile", new Type[] { typeof(int), typeof(Vector3) });
+            if (miT == null) miT = FindMethodMatching(pawnType, "TeleportToTile", new Type[] { typeof(int) });
+            //MethodInfo miT = pawnComp.GetType().GetMethod("TeleportToTile", BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
             IEnumerator coT = null;
             if (miT != null)
             {
@@ -286,6 +299,75 @@ public class MovementSystem : MonoBehaviour
         }
         // default fallback
         return 100;
+    }
+
+    // Find a MethodInfo on `type` with given name and parameter types (null param types means "any")
+    private MethodInfo FindMethodMatching(Type type, string methodName, Type[] parameterTypes)
+    {
+        var candidates = type.GetMethods(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance)
+                             .Where(m => m.Name == methodName)
+                             .ToArray();
+        if (candidates.Length == 0) return null;
+        if (parameterTypes == null || parameterTypes.Length == 0)
+        {
+            // prefer parameterless if exists
+            var p0 = candidates.FirstOrDefault(m => m.GetParameters().Length == 0);
+            if (p0 != null) return p0;
+            return candidates.First();
+        }
+
+        // try exact match of parameter types
+        foreach (var c in candidates)
+        {
+            var ps = c.GetParameters();
+            if (ps.Length != parameterTypes.Length) continue;
+            bool ok = true;
+            for (int i = 0; i < ps.Length; i++)
+            {
+                if (!ps[i].ParameterType.IsAssignableFrom(parameterTypes[i]))
+                {
+                    ok = false; break;
+                }
+            }
+            if (ok) return c;
+        }
+
+        // fallback: try compatible by name/length
+        return candidates.FirstOrDefault(m => m.GetParameters().Length == parameterTypes.Length);
+    }
+
+    // Create a delegate instance compatible with 'targetDelType' from a Func<int,Vector3> provider.
+    // Returns null if not possible.
+    private object CreateDelegateForParameter(Type targetDelType, Func<int, Vector3> provider)
+    {
+        if (provider == null) return null;
+        if (targetDelType == null) return null;
+
+        // if targetDelType is exactly Func<int,Vector3>
+        if (targetDelType == typeof(Func<int, Vector3>))
+            return provider;
+
+        try
+        {
+            // Try create a delegate instance from the provider method
+            // provider.Target can be null for static lambdas; use provider.Method
+            Delegate del = Delegate.CreateDelegate(targetDelType, provider.Target, provider.Method);
+            return del;
+        }
+        catch
+        {
+            // last attempt: try CreateDelegate with open static method (for lambdas)
+            try
+            {
+                Delegate del = Delegate.CreateDelegate(targetDelType, provider.Method);
+                return del;
+            }
+            catch
+            {
+                // give up
+                return null;
+            }
+        }
     }
 
     private object CreateTileProviderDelegate(MethodInfo targetMethod, Component pawnComp, Func<int, Vector3> provider)
