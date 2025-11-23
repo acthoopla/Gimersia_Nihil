@@ -1,0 +1,138 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!1 &4379174858041734109
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 6710749182437159769}
+  - component: {fileID: 1773522307823395121}
+  - component: {fileID: 2345107419513041846}
+  - component: {fileID: 1323718428584850294}
+  - component: {fileID: 5005204715384552624}
+  - component: {fileID: 7275221758928663503}
+  - component: {fileID: 3339683934056163088}
+  m_Layer: 0
+  m_Name: GameManager
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &6710749182437159769
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 4379174858041734109}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 4.836299, y: -4.8842344, z: 11.598832}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 0}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &1773522307823395121
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 4379174858041734109}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 7d8e909f6f6e79143952203e6352f00b, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  maxCardsPerTurn: 3
+  enableStartTurnCardChoice: 1
+  players: []
+  preMoveTimeout: 10
+  postMoveTimeout: 20
+  smallDelay: 0.12
+--- !u!114 &2345107419513041846
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 4379174858041734109}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 44db586ddaee34a43b4e5a8b45288329, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  totalTilesInBoard: 100
+  autoFindTiles: 1
+  tiles: []
+--- !u!114 &1323718428584850294
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 4379174858041734109}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 58eae2dbc0b5d234e985498c0d1523e5, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  cardPool:
+  - {fileID: 11400000, guid: 60e062a1941228f4fa1f2a52fdf8f39d, type: 2}
+  maxHandSize: 6
+  defaultCycleAcquired: 1
+--- !u!114 &5005204715384552624
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 4379174858041734109}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 217599f759fdcaf4e86221cb89a6457a, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  verboseLog: 1
+--- !u!114 &7275221758928663503
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 4379174858041734109}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: a53ffaa0c24b0bc4b8a3863086b0ef24, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  boardManager: {fileID: 2345107419513041846}
+  turnManager: {fileID: 1773522307823395121}
+  movementSystem: {fileID: 3339683934056163088}
+  tileEffectSystem: {fileID: 0}
+  combatSystem: {fileID: 5005204715384552624}
+  cardSystem: {fileID: 1323718428584850294}
+  playersContainer: {fileID: 0}
+  autoCollectPlayers: 1
+  startPlayerIndex: 0
+  autoStartGame: 1
+--- !u!114 &3339683934056163088
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 4379174858041734109}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 7548b88727c00ec4c9c0c390687995a2, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  stepSpeed: 5
+  stepDelay: 0.08
+  positionTolerance: 0.01

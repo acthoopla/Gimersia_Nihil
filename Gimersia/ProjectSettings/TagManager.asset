@@ -5,6 +5,9 @@ TagManager:
   serializedVersion: 2
   tags:
   - FxTemporaire
+  - AttackTile
+  - NegaTile
+  - BossTile
   layers:
   - Default
   - TransparentFX
