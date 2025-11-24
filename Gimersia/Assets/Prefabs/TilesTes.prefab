@@ -10,10 +10,9 @@ GameObject:
   m_Component:
   - component: {fileID: 3747114297527766946}
   - component: {fileID: 404588560165370419}
-  - component: {fileID: 1731637340603181310}
-  - component: {fileID: 8623217676939847442}
+  - component: {fileID: 8991262012882026972}
   m_Layer: 0
-  m_Name: Tiles
+  m_Name: TilesTes
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
@@ -68,36 +67,7 @@ BoxCollider:
   serializedVersion: 3
   m_Size: {x: 1, y: 1, z: 1}
   m_Center: {x: 0, y: 0, z: 0}
---- !u!114 &1731637340603181310
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 294143723951711165}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: e22130e623b1f0b4a8128f2c27fc45bc, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: 
-  tileID: 0
-  type: 0
-  tileNumberText: {fileID: 5860929292229797379}
-  targetTile: {fileID: 0}
-  pathContainer: {fileID: 0}
-  normalModel: {fileID: 353101790860569556}
-  snakeStartModel: {fileID: 4753400786415293348}
-  ladderStartModel: {fileID: 890821727590189772}
-  snakeEndModel: {fileID: 0}
-  ladderEndModel: {fileID: 0}
-  snakePathStraightModel: {fileID: 0}
-  snakePathBendModel1: {fileID: 0}
-  snakePathBendModel2: {fileID: 0}
-  blessingCardModel: {fileID: 0}
-  lastKnownTarget: {fileID: 0}
-  lastKnownType: 0
-  lastKnownTileID: -1
---- !u!114 &8623217676939847442
+--- !u!114 &8991262012882026972
 MonoBehaviour:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
@@ -383,11 +353,6 @@ Transform:
   m_CorrespondingSourceObject: {fileID: -8679921383154817045, guid: dbb50cf5ec45d9c41899b9fc41be6652, type: 3}
   m_PrefabInstance: {fileID: 44398785584674717}
   m_PrefabAsset: {fileID: 0}
---- !u!1 &890821727590189772 stripped
-GameObject:
-  m_CorrespondingSourceObject: {fileID: 919132149155446097, guid: dbb50cf5ec45d9c41899b9fc41be6652, type: 3}
-  m_PrefabInstance: {fileID: 44398785584674717}
-  m_PrefabAsset: {fileID: 0}
 --- !u!1001 &415751570338588821
 PrefabInstance:
   m_ObjectHideFlags: 0
@@ -515,11 +480,6 @@ PrefabInstance:
     m_AddedGameObjects: []
     m_AddedComponents: []
   m_SourcePrefab: {fileID: 100100000, guid: 93044f6c90907ff42a13287a930a4325, type: 3}
---- !u!1 &353101790860569556 stripped
-GameObject:
-  m_CorrespondingSourceObject: {fileID: 919132149155446097, guid: 93044f6c90907ff42a13287a930a4325, type: 3}
-  m_PrefabInstance: {fileID: 587457950998681221}
-  m_PrefabAsset: {fileID: 0}
 --- !u!4 &1129744459433259374 stripped
 Transform:
   m_CorrespondingSourceObject: {fileID: -8679921383154817045, guid: 93044f6c90907ff42a13287a930a4325, type: 3}
@@ -1048,11 +1008,6 @@ PrefabInstance:
     m_AddedGameObjects: []
     m_AddedComponents: []
   m_SourcePrefab: {fileID: 100100000, guid: a7d0601a023119c45bccf4d5dd99b120, type: 3}
---- !u!1 &4753400786415293348 stripped
-GameObject:
-  m_CorrespondingSourceObject: {fileID: 919132149155446097, guid: a7d0601a023119c45bccf4d5dd99b120, type: 3}
-  m_PrefabInstance: {fileID: 5563653103931469557}
-  m_PrefabAsset: {fileID: 0}
 --- !u!4 &5385364488850032926 stripped
 Transform:
   m_CorrespondingSourceObject: {fileID: -8679921383154817045, guid: a7d0601a023119c45bccf4d5dd99b120, type: 3}
