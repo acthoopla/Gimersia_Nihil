@@ -14,7 +14,6 @@ GameObject:
   - component: {fileID: 1323718428584850294}
   - component: {fileID: 5005204715384552624}
   - component: {fileID: 7275221758928663503}
-  - component: {fileID: 3339683934056163088}
   m_Layer: 0
   m_Name: GameManager
   m_TagString: Untagged
@@ -49,12 +48,8 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 7d8e909f6f6e79143952203e6352f00b, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  maxCardsPerTurn: 3
-  enableStartTurnCardChoice: 1
+  delayBetweenTurns: 0.5
   players: []
-  preMoveTimeout: 10
-  postMoveTimeout: 20
-  smallDelay: 0.12
 --- !u!114 &2345107419513041846
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -113,26 +108,11 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   boardManager: {fileID: 2345107419513041846}
   turnManager: {fileID: 1773522307823395121}
-  movementSystem: {fileID: 3339683934056163088}
+  movementSystem: {fileID: 0}
   tileEffectSystem: {fileID: 0}
   combatSystem: {fileID: 5005204715384552624}
-  cardSystem: {fileID: 1323718428584850294}
+  cardManager: {fileID: 0}
   playersContainer: {fileID: 0}
   autoCollectPlayers: 1
   startPlayerIndex: 0
   autoStartGame: 1
---- !u!114 &3339683934056163088
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 4379174858041734109}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 7548b88727c00ec4c9c0c390687995a2, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: 
-  stepSpeed: 5
-  stepDelay: 0.08
-  positionTolerance: 0.01
