@@ -5,36 +5,48 @@ using UnityEngine;
 public class VisualBridge : MonoBehaviour
 {
     [Header("Links")]
+    [Tooltip("Player yang akan dipantau (Drag Player GameObject ke sini)")]
     public PlayerState monitoredPlayer;
+
+    [Tooltip("Script Hand Holder yang mengatur posisi visual kartu")]
     public CardHandHolder handHolder;
 
     void Start()
     {
+        // 1. Cari Player Otomatis jika belum di-assign di Inspector
         if (monitoredPlayer == null)
             monitoredPlayer = FindObjectOfType<PlayerState>();
 
         if (monitoredPlayer != null && handHolder != null)
         {
-            // 1. Kenalkan Owner ke Visual
+            // 2. Kenalkan Owner ke Visual (Agar kartu tahu siapa pemiliknya)
             handHolder.SetOwner(monitoredPlayer);
 
-            // 2. Buat Slot Kosong DI AWAL saja (jangan di-loop update)
+            // 3. Buat Slot Kosong DI AWAL saja (Sekali seumur hidup)
+            // Kita tidak me-reset slot di Update agar animasi mulus
             handHolder.CreateCardSlots(monitoredPlayer.maxHandSize);
 
-            // 3. Subscribe Event
+            // 4. Subscribe ke Event Perubahan Data
             monitoredPlayer.OnStateChanged += SyncHandVisuals;
 
-            // 4. Sync Awal
+            // 5. Sinkronisasi Pertama Kali (Untuk memunculkan kartu awal)
             SyncHandVisuals(monitoredPlayer);
+        }
+        else
+        {
+            Debug.LogError("[VisualBridge] Error: PlayerState atau CardHandHolder belum di-assign!");
         }
     }
 
     void OnDestroy()
     {
-        if (monitoredPlayer != null) monitoredPlayer.OnStateChanged -= SyncHandVisuals;
+        // Jangan lupa Unsubscribe saat objek hancur untuk mencegah memory leak
+        if (monitoredPlayer != null)
+            monitoredPlayer.OnStateChanged -= SyncHandVisuals;
     }
 
-    // Fungsi Smart Sync (Hanya update perbedaan)
+    // --- FUNGSI UTAMA: SMART SYNC ---
+    // Fungsi ini dipanggil otomatis setiap kali ada perubahan di PlayerState (Add/Remove card)
     void SyncHandVisuals(PlayerState player)
     {
         if (handHolder == null) return;
@@ -42,19 +54,21 @@ public class VisualBridge : MonoBehaviour
         List<NewCardData> logicHand = player.hand;
         int maxSlots = player.maxHandSize;
 
+        // Loop semua slot yang ada
         for (int i = 0; i < maxSlots; i++)
         {
-            // Ambil referensi Slot visual dan Data logic di index ini
+            // Ambil referensi Slot visual di index ini
             CardSlot visualSlot = handHolder.GetHandSlotByIndex(i);
+
+            // Ambil data Logic di index ini (jika ada)
             NewCardData logicData = (i < logicHand.Count) ? logicHand[i] : null;
 
             // --- CEK APAKAH VISUAL & LOGIC SINKRON? ---
 
-            // Cek data visual saat ini (jika ada)
+            // Cek data kartu visual yang sedang tertempel di slot ini (jika ada)
             NewCardData currentVisualData = null;
             if (visualSlot.HasCard())
             {
-                // Ambil data dari kartu yang tertempel
                 var cardVis = visualSlot.GetCard();
                 if (cardVis != null)
                 {
@@ -63,29 +77,32 @@ public class VisualBridge : MonoBehaviour
                 }
             }
 
-            // KONDISI 1: Logic ada kartu, tapi Visual kosong/beda -> SPAWN
+            // KASUS 1: Di Logic ADA kartu
             if (logicData != null)
             {
+                // Tapi Visualnya SALAH atau KOSONG -> Kita perbaiki (Spawn Baru)
                 if (currentVisualData != logicData)
                 {
-                    // Kalau slot ada isinya tapi salah data, hapus dulu
+                    // Kalau slot ada isinya tapi salah data (misal ketimpa), hapus dulu
                     if (visualSlot.HasCard())
                     {
                         Destroy(visualSlot.GetCard().gameObject);
                         visualSlot.SetCard(null);
                     }
 
-                    // Spawn kartu yang benar
+                    // Spawn kartu yang benar dari Template
                     handHolder.SpawnCard(logicData, i);
                 }
-                // Jika sama, biarkan saja (jangan destroy/spawn ulang!)
+                // Jika (currentVisualData == logicData), kita DIAMKAN SAJA.
+                // Jangan di-destroy/spawn ulang agar tidak kedip/dobel.
             }
-            // KONDISI 2: Logic kosong (sudah dipakai), tapi Visual masih ada -> HAPUS
+
+            // KASUS 2: Di Logic KOSONG (misal kartu sudah dipakai)
             else
             {
+                // Tapi Visual MASIH ADA -> Kita Hapus (Garbage Collection)
                 if (visualSlot.HasCard())
                 {
-                    // Hapus visualnya
                     Destroy(visualSlot.GetCard().gameObject);
                     visualSlot.SetCard(null);
                 }

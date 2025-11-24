@@ -151,24 +151,35 @@ public class CardSelectionHolder : MonoBehaviour
     {
         if (card == null) return;
 
-        CardSlot emptySlot = FindFirstEmptySlotInHand();
-        if (emptySlot == null)
-        {
-            Debug.LogWarning("No empty slot available in hand!");
-            return;
-        }
-
+        // 1. Update LOGIC (Kembalikan data ke PlayerState)
         GameCard logicCard = card.GetComponent<GameCard>();
-        PlayerState ownerPlayer = FindObjectOfType<PlayerState>(); // Atau cache reference
-
-        if (logicCard != null && ownerPlayer != null)
+        if (logicCard != null && currentPlayer != null)
         {
-            ownerPlayer.ReturnCardToHand(logicCard.GetData());
+            // Ini akan mentrigger Event OnStateChanged di PlayerState
+            // VisualBridge akan menangkap event ini dan men-spawn kartu di tangan secara otomatis
+            currentPlayer.ReturnCardToHand(logicCard.GetData());
         }
 
-        TransferCardToHand(card, emptySlot);
-    }
+        // 2. Update VISUAL SLOT (Hapus dari slot saat ini)
+        CardSlot currentSlot = card.GetSlot();
+        if (currentSlot != null)
+        {
+            currentSlot.SetCard(null);
+        }
 
+        BaseCard cardComponent = card.GetCardComponent();
+        if (cardComponent != null)
+        {
+            cardsInSelection.Remove(cardComponent);
+        }
+
+        // 3. DESTROY VISUAL (JANGAN ANIMASI BALIK)
+        // Kita hancurkan visual ini karena VisualBridge akan membuatkan yang baru di tangan
+        Destroy(card.gameObject);
+
+        // 4. Update Button Visibility
+        UpdateButtonVisibility();
+    }
     private void TransferCardToHand(CardVisual card, CardSlot targetSlot)
     {
         CardSlot currentSlot = card.GetSlot();
