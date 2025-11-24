@@ -2,6 +2,7 @@ using System;
 using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
+using static NewCardSystem;
 
 /// <summary>
 /// TileEffectSystem (SRP)
@@ -18,6 +19,8 @@ using UnityEngine;
 [DisallowMultipleComponent]
 public class TileEffectSystem : MonoBehaviour
 {
+    public static TileEffectSystem Instance { get; private set; }
+
     // Row damage mapping sesuai GDD (index 1..10 used)
     private readonly Dictionary<int, int> rowDamage = new Dictionary<int, int>()
     {
@@ -63,7 +66,7 @@ public class TileEffectSystem : MonoBehaviour
 
         // Check for immunity to all negative turns first (some tiles are negative)
         bool isNegativeTile = IsNegaTile(tile);
-        if (isNegativeTile && player.immuneToAllNegativeTurns > 0)
+        if (isNegativeTile && player.immuneStacks > 0)
         {
             // If immune, skip negative tile effects (but still consider damage tile? GDD says immunity prevents negative)
             Debug.Log($"[TileEffectSystem] {player.gameObject.name} is immune to negative tiles.");
@@ -139,22 +142,54 @@ public class TileEffectSystem : MonoBehaviour
         // 3) BlessingCard (Card Tile)
         if (tile.type == TileType.BlessingCard)
         {
-            Debug.Log($"[TileEffectSystem] Card tile: give 1 random card (movement or buff) to {player.gameObject.name}");
-            // Use CardSystem if available
-            if (NewCardSystem.Instance != null)
+            Debug.Log($"[TileEffectSystem] Blessing Tile triggered!");
+
+            if (NewCardManager.Instance != null && BlessingUIManager.Instance != null)
             {
-                // Draw one random from categories Movement + Buff
-                NewCardSystem.Instance.GiveRandomCardFromCategories(player, new NewCardSystem.CardCategory[] {
-                    NewCardSystem.CardCategory.Movement,
-                    NewCardSystem.CardCategory.Buff
+                // Ambil 3 Kartu sesuai request:
+                // Slot 1: Movement
+                NewCardData card1 = NewCardManager.Instance.GetRandomCardByCategory(CardCategory.Movement);
+                // Slot 2: Buff
+                NewCardData card2 = NewCardManager.Instance.GetRandomCardByCategory(CardCategory.Buff);
+                // Slot 3: Double
+                NewCardData card3 = NewCardManager.Instance.GetRandomCardByCategory(CardCategory.Utility);
+
+                // Tampilkan UI dan TUNGGU player memilih
+                // Kita tidak panggil NotifyTileResolveComplete di sini, tapi di callback
+                BlessingUIManager.Instance.ShowBlessingChoice(player, card1, card2, card3, () =>
+                {
+                    // Ini dipanggil SETELAH player memilih kartu & UI tertutup
+                    TurnManager.Instance?.NotifyTileResolveComplete(player);
                 });
+
+                yield break; // Stop coroutine di sini, biarkan UI yang melanjutkannya
             }
             else
             {
-                Debug.LogWarning("[TileEffectSystem] CardSystem not found; skipping card grant.");
+                Debug.LogWarning("Manager UI Blessing hilang!");
+                TurnManager.Instance?.NotifyTileResolveComplete(player);
+                yield break;
+            }
+        }
+
+        // --- FITUR 2: MYSTERY TILE (DAPAT 1 RANDOM) ---
+        if (tile.type == TileType.MysteryCard)
+        {
+            Debug.Log($"[TileEffectSystem] Mystery Tile triggered!");
+
+            if (NewCardManager.Instance != null)
+            {
+                // Ambil 1 kartu random bebas kategori
+                NewCardData randomCard = NewCardManager.Instance.GetRandomCardAny();
+
+                if (randomCard != null)
+                {
+                    player.TryAddCard(randomCard);
+                    Debug.Log($"Player got free card: {randomCard.cardName}");
+                }
             }
 
-            // Completed
+            // Langsung selesai karena tidak butuh input player
             TurnManager.Instance?.NotifyTileResolveComplete(player);
             yield break;
         }

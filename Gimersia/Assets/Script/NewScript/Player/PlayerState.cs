@@ -16,209 +16,131 @@ using UnityEngine;
 [DisallowMultipleComponent]
 public class PlayerState : MonoBehaviour
 {
-    // ----- Konfigurasi dasar -----
     [Header("Core Stats")]
-    [Tooltip("Maximum HP player (default 15 sesuai GDD)")]
     public int maxHP = 15;
-
-    [Tooltip("HP saat ini (runtime)")]
     public int currentHP;
 
     [Header("Card / Hand")]
-    [Tooltip("Maksimal kartu di tangan")]
     public int maxHandSize = 6;
-
-    [Tooltip("Kartu yang sedang dipegang pemain")]
     public List<NewCardData> hand = new List<NewCardData>();
 
-    // --- BACKWARD-COMPATIBILITY: 'heldCards' digunakan oleh beberapa sistem lama
-    //   Ini adalah property yang langsung membungkus 'hand' sehingga referensi lama tetap valid.
-    public List<NewCardData> heldCards
-    {
-        get
-        {
-            if (hand == null) hand = new List<NewCardData>();
-            return hand;
-        }
-        set
-        {
-            hand = value ?? new List<NewCardData>();
-        }
-    }
+    [Header("Action Slots")]
+    public int maxSlots = 3; // Batas 3 kartu
+    public List<NewCardData> selectedCards = new List<NewCardData>(); // Antrean eksekusi
 
-    [Header("Temporary Buff / Modifiers")]
-    [Tooltip("Flat defense yang berasal dari kartu buff (bersifat additive).")]
+    [Header("Status & Flags")]
+    public int TileID = 1;
+    public int immuneStacks = 0; // Jumlah stack immune (bisa nahan berapa kali)
+    public int immuneToSnakeUses = 0;
+    public int reflectMultiplier = 0;
+    [SerializeField] private bool hasDoubleEdge = false;
     public int defenseFromCards = 0;
 
-    [Tooltip("Modifier untuk roll berikutnya (mis. +2 atau -2 dari efek)")]
+    [Tooltip("Modifikasi roll dadu berikutnya (bisa + atau -). Reset setelah roll.")]
     public int nextRollModifier = 0;
 
-    [Header("Flags / Status")]
-    [Tooltip("Player kebal (contoh: dari card) untuk beberapa giliran — dipakai oleh systems lain jika perlu")]
-    public int immuneToAllNegativeTurns = 0;
+    [Header("References")]
+    public NewPlayerPawn pawn; // Referensi ke script visual pawn
 
-    [Tooltip("Player kebal dari snake untuk beberapa penggunaan")]
-    public int immuneToSnakeUses = 0;
-
-    [Tooltip("Jika true, player mendapatkan giliran ekstra (set oleh card lalu dikonsumsi oleh TurnManager)")]
-    public bool getsExtraTurn = false;
-
-    [Tooltip("Jika true, player akan menggambar 1 kartu pada giliran berikutnya")]
-    public bool drawCardNextTurn = false;
-
-    public int TileID = 1;
-    public int extraDiceRolls = 0;
-
-    // ----- Pawn reference (backward-compatible) -----
-    [Header("References (Compatibility)")]
-    [Tooltip("Referensi Pawn/Avatar pemain (dipakai oleh sistem visual/anim/etc).")]
-    public NewPlayerPawn pawn;
-
-    // Event untuk perubahan status (internal convenience)
+    // Events: Memberitahu UI (HandUIManager) jika ada perubahan
     public event Action<PlayerState> OnStateChanged;
 
-    // ----- Properti helper -----
-    public bool IsDead => currentHP <= 0;
+    // Properties
     public bool IsHandFull => hand.Count >= maxHandSize;
+    public bool IsDead => currentHP <= 0;
 
-    // Backing field untuk efek 'Double Edge' (tidak ada sebelumnya — ditambahkan untuk kompatibilitas)
-    [SerializeField, Tooltip("Flag efek DoubleEdge (compatibility).")]
-    private bool hasDoubleEdge = false;
-
-    // Backward-compatible property (nama persis seperti yang dipanggil di beberapa script)
     public bool HasDoubleEdge
     {
         get => hasDoubleEdge;
         set => hasDoubleEdge = value;
     }
 
+    // Backward Compatibility Property (Agar script lama tetap jalan)
+    public List<NewCardData> heldCards
+    {
+        get => hand;
+        set => hand = value ?? new List<NewCardData>();
+    }
+
     void Awake()
     {
         currentHP = maxHP;
-        if (hand == null) hand = new List<NewCardData>();
     }
 
     public void NotifyStateChanged() => OnStateChanged?.Invoke(this);
 
-    /// <summary>
-    /// Set current HP (clamped). Memicu event apabila pemain mati.
-    /// Gunakan ApplyDamage untuk perhitungan damage (memperhitungkan defenseFromCards).
-    /// </summary>
-    public void SetHP(int newHP)
-    {
-        currentHP = Mathf.Clamp(newHP, 0, maxHP);
-        OnStateChanged?.Invoke(this);
-        if (currentHP <= 0)
-        {
-            // Publish lewat EventBus supaya sistem lain (TurnManager / UI) tahu
-            EventBus.PlayerDied(this);
-        }
-    }
-
-    /// <summary>
-    /// Apply damage ke player. Memperhitungkan defenseFromCards (flat).
-    /// Damage minimal 0.
-    /// Akan men-trigger EventBus.DamageTaken dan PlayerDied jika HP <= 0.
-    /// </summary>
-    /// <param name="rawDamage">Damage sebelum pengurangan</param>
-    /// <param name="source">opsional, string/enum menjelaskan sumber damage</param>
+    // --- LOGIC HEALTH & DAMAGE ---
     public void ApplyDamage(int rawDamage, string source = null)
     {
-        int finalDamage = Mathf.Max(0, rawDamage - defenseFromCards);
-        if (finalDamage == 0)
+        // 1. CEK REFLECT (Sekarang pakai multiplier)
+        if (reflectMultiplier > 0)
         {
-            // masih publish event agar UI tahu (mis. "No damage karena defense")
-            EventBus.DamageTaken(this, 0);
+            int reflectDmg = rawDamage * reflectMultiplier;
+            Debug.Log($"[Reflect] Player memantulkan {reflectDmg} damage ({reflectMultiplier}x dari {rawDamage})!");
+
+            // TODO: Panggil CombatSystem untuk deal damage ke musuh
+            // CombatSystem.Instance.DealDamageToBoss(reflectDmg);
+
+            reflectMultiplier = 0;
+            NotifyStateChanged();
+
             return;
         }
 
-        currentHP = Mathf.Max(0, currentHP - finalDamage);
-
-        // Publish event damage taken (semua subscriber tahu)
-        EventBus.DamageTaken(this, finalDamage);
-
-        // Informasi internal
-        OnStateChanged?.Invoke(this);
-
-        if (currentHP <= 0)
+        // 2. CEK IMMUNE
+        if (immuneStacks > 0)
         {
-            EventBus.PlayerDied(this);
+            immuneStacks--;
+            Debug.Log($"[Immune] Damage {rawDamage} ditahan! Sisa Immune Stack: {immuneStacks}");
+            NotifyStateChanged();
+            return;
         }
+
+        // 3. LOGIKA DAMAGE NORMAL
+        int damageAfterDefense = Mathf.Max(0, rawDamage - defenseFromCards);
+        float multiplier = HasDoubleEdge ? 2f : 1f;
+        int finalDamage = Mathf.RoundToInt(damageAfterDefense * multiplier);
+
+        currentHP = Mathf.Max(0, currentHP - finalDamage);
+        NotifyStateChanged();
     }
 
-    /// <summary>
-    /// Heal player. Tidak boleh melebihi maxHP.
-    /// </summary>
     public void Heal(int amount)
     {
-        if (amount <= 0) return;
         currentHP = Mathf.Min(maxHP, currentHP + amount);
-        OnStateChanged?.Invoke(this);
+        NotifyStateChanged();
     }
 
-    /// <summary>
-    /// Add defense buff value (misal saat pakai buff card).
-    /// Caller bertanggung jawab mengatur durasi / stack logic.
-    /// </summary>
-    public void AddDefense(int amount)
+    public void AddImmunityStack(int amount)
     {
-        defenseFromCards += amount;
-        OnStateChanged?.Invoke(this);
+        immuneStacks += amount;
+        NotifyStateChanged();
     }
 
-    /// <summary>
-    /// Remove defense buff value (dipanggil saat buff expired / kartu di-disarm).
-    /// Pastikan tidak membuat defense negatif.
-    /// </summary>
-    public void RemoveDefense(int amount)
+    public void SetReflect(int multiplier)
     {
-        defenseFromCards = Mathf.Max(0, defenseFromCards - amount);
-        OnStateChanged?.Invoke(this);
+        reflectMultiplier = multiplier;
+        NotifyStateChanged();
     }
 
-    // -------------------------
-    //  Hand / Card helpers
-    // -------------------------
-    /// <summary>
-    /// Coba menambahkan kartu ke hand. Mengembalikan true jika berhasil.
-    /// Jika hand penuh, kembalikan false (UI/Caller harus handle Drop/Skip).
-    /// </summary>
+    // --- LOGIC HAND (MANDIRI) ---
     public bool TryAddCard(NewCardData card)
     {
-        if (card == null) return false;
-        if (hand.Count >= maxHandSize) return false;
+        if (card == null || IsHandFull) return false;
         hand.Add(card);
-        // Notify card draw untuk sistem lain (UI)
-        EventBus.CardDrawn(this);
-        OnStateChanged?.Invoke(this);
+        NotifyStateChanged();
         return true;
     }
 
-    /// <summary>
-    /// Force add card (untuk bypass hand limit) — dipakai hanya jika kamu mau auto-drop atau replace.
-    /// Caller harus memilih kartu mana yang dibuang.
-    /// </summary>
-    public void ForceAddCard(NewCardData card)
-    {
-        if (card == null) return;
-        hand.Add(card);
-        EventBus.CardDrawn(this);
-        OnStateChanged?.Invoke(this);
-    }
-
-    /// <summary>
-    /// Buang kartu spesifik dari hand (jika ada). Return true jika berhasil.
-    /// </summary>
     public bool DiscardCard(NewCardData card)
     {
         bool removed = hand.Remove(card);
-        if (removed) OnStateChanged?.Invoke(this);
+        if (removed) NotifyStateChanged();
         return removed;
     }
 
     /// <summary>
-    /// Buang `count` kartu secara acak dari hand. Return list kartu yang dibuang.
-    /// Digunakan untuk efek Disarm.
+    /// Buang `count` kartu secara acak (misal kena Nega Tile Disarm).
     /// </summary>
     public List<NewCardData> DiscardRandom(int count)
     {
@@ -236,40 +158,69 @@ public class PlayerState : MonoBehaviour
             removed.Add(c);
         }
 
-        OnStateChanged?.Invoke(this);
+        NotifyStateChanged();
         return removed;
     }
 
-    /// <summary>
-    /// Clear hand (misal saat reset game).
-    /// </summary>
     public void ClearHand()
     {
         hand.Clear();
-        OnStateChanged?.Invoke(this);
+        NotifyStateChanged();
     }
 
     // -------------------------
     //  Utility helpers
     // -------------------------
-    /// <summary>
-    /// Reset stat sementara (dipanggil tiap cycle jika perlu).
-    /// Jangan reset maxHP atau permanent state yang seharusnya persist.
-    /// </summary>
     public void ResetTemporaryStatus()
     {
         defenseFromCards = 0;
-        nextRollModifier = 0;
-        immuneToAllNegativeTurns = 0;
-        immuneToSnakeUses = 0;
-        getsExtraTurn = false;
-        drawCardNextTurn = false;
-        OnStateChanged?.Invoke(this);
+        immuneStacks = 0;
+        // nextRollModifier TIDAK direset di sini, karena dipakai saat roll dadu
+        reflectMultiplier = 0;
+        hasDoubleEdge = false; // Reset status double edge setiap ganti giliran (opsional)
+        NotifyStateChanged();
     }
 
-    /// <summary>
-    /// Debug helper untuk menampilkan ringkasan state ke console.
-    /// </summary>
+    // Method SetHP yang dipanggil NewGameManager saat restart
+    public void SetHP(int hp)
+    {
+        currentHP = hp;
+        NotifyStateChanged();
+    }
+
+    public bool SelectCardToSlot(NewCardData card)
+    {
+        if (card == null) return false;
+        if (selectedCards.Count >= maxSlots) return false; // Slot penuh
+        if (!hand.Contains(card)) return false;
+
+        hand.Remove(card);
+        selectedCards.Add(card); // Masuk antrean
+        NotifyStateChanged();
+        return true;
+    }
+
+    public bool ReturnCardToHand(NewCardData card)
+    {
+        if (card == null) return false;
+        if (!selectedCards.Contains(card)) return false;
+        if (IsHandFull) return false; // Hand penuh
+
+        selectedCards.Remove(card);
+        hand.Add(card); // Balik ke hand
+        NotifyStateChanged();
+        return true;
+    }
+
+    public void ConsumeSelectedCard(NewCardData card)
+    {
+        if (selectedCards.Contains(card))
+        {
+            selectedCards.Remove(card);
+            NotifyStateChanged();
+        }
+    }
+
     public string GetStatusSummary()
     {
         return $"[PlayerState] {gameObject.name} HP:{currentHP}/{maxHP} DEF:{defenseFromCards} Hand:{hand.Count}/{maxHandSize}";

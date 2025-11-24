@@ -12,6 +12,7 @@ public enum TileType
     SnakeEnd,
     LadderEnd,
     BlessingCard,
+    MysteryCard,
     SnakePathStraight,
     SnakePathBend1,
     SnakePathBend2
