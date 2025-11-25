@@ -68,7 +68,7 @@ public class BoardManager : MonoBehaviour
     /// <summary>
     /// Build dictionary lookup dari list tiles (harus dipanggil setelah tiles di-populate)
     /// </summary>
-    private void BuildLookupFromList()
+    public void BuildLookupFromList()
     {
         tileLookup.Clear();
         foreach (var t in tiles)
