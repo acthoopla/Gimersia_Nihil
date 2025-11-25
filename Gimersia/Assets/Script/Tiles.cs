@@ -1,62 +1,70 @@
 using UnityEngine;
-using TMPro;
-using System.Linq;
+using TMPro; // Tetap pakai TMPro sesuai script lamamu
 using System.Collections.Generic;
 
-// Enum (tidak berubah)
+// 1. ENUM DIPERBARUI (Gabungan visual lama + logika baru)
 public enum TileType
 {
     Normal,
     SnakeStart,
     LadderStart,
-    SnakeEnd,
-    LadderEnd,
+    SnakeEnd,       // Visual only
+    LadderEnd,      // Visual only
+
+    // Tipe Baru yang WAJIB ada untuk TileEffectSystem:
+    Attack,         // Pemicu Attack Player -> Boss
+    Boss,           // Pemicu Attack Boss -> Player
+    Nega,           // Tile jahat (Debuff)
+
     BlessingCard,
     MysteryCard,
+
+    // Visual Jalur Ular
     SnakePathStraight,
     SnakePathBend1,
     SnakePathBend2
 }
 
+[DisallowMultipleComponent]
 public class Tiles : MonoBehaviour
 {
-    [Header("Identitas Tile")]
+    [Header("Identitas Tile (Logic)")]
     public int tileID;
     public TileType type = TileType.Normal;
+    public Tiles targetTile; // Untuk Snake/Ladder destination
 
-    [Header("Visuals")]
+    [Header("Visual Anchor (Logic Baru)")]
+    [Tooltip("Titik berdiri player. Jika kosong, otomatis pakai tengah tile.")]
+    public Transform playerStandPoint;
+
+    [Header("Visual Components (Script Lama)")]
     public TextMeshPro tileNumberText;
-
-    [Header("Logika Ular/Tangga")]
-    public Tiles targetTile;
-
-    [Header("Visual Models (Wadah)")]
     public Transform pathContainer;
 
-    [Header("Visual Models (Child Objects)")]
+    // --- Model References (Script Lama) ---
+    [Header("Visual Models")]
     public GameObject normalModel;
     public GameObject snakeStartModel;
     public GameObject ladderStartModel;
-
-    [Header("Visual Models (Tujuan)")]
     public GameObject snakeEndModel;
     public GameObject ladderEndModel;
+    public GameObject blessingCardModel;
 
-    [Header("Visual Models (Jalur Ular)")]
+    // Tambahan Model untuk Tipe Baru (Opsional, assign di inspector)
+    [Header("New Logic Models")]
+    public GameObject attackModel;
+    public GameObject bossModel;
+    public GameObject negaModel;
+
+    [Header("Snake Path Models")]
     public GameObject snakePathStraightModel;
     public GameObject snakePathBendModel1;
     public GameObject snakePathBendModel2;
 
-    [Header("Visual Models (Spesial)")]
-    public GameObject blessingCardModel;
-
-    [SerializeField, HideInInspector]
-    private Tiles lastKnownTarget;
-    [SerializeField, HideInInspector]
-    private TileType lastKnownType;
-    [SerializeField, HideInInspector]
-    private int lastKnownTileID = -1;
-
+    // Internal state untuk editor tracking
+    [SerializeField, HideInInspector] private Tiles lastKnownTarget;
+    [SerializeField, HideInInspector] private TileType lastKnownType;
+    [SerializeField, HideInInspector] private int lastKnownTileID = -1;
     private Vector3 originalPosition;
 
     void Awake()
@@ -73,13 +81,21 @@ public class Tiles : MonoBehaviour
         lastKnownTileID = tileID;
     }
 
+    // --- LOGIC BARU: GET POSITION ---
+    // Digunakan oleh MovementSystem
+    public Vector3 GetPlayerPosition()
+    {
+        // Prioritaskan playerStandPoint jika ada, jika tidak pakai logic lama (+0.5f Y)
+        if (playerStandPoint != null) return playerStandPoint.position;
+        return transform.position + Vector3.up * 0.5f;
+    }
+
+    // --- FITUR SCRIPT LAMA (Auto Assign & Visuals) ---
     void OnValidate()
     {
-        #region OnValidate Logic
-        if (transform.localRotation != Quaternion.identity)
-        {
+        #region Editor Logic
+        if (transform.localRotation != Quaternion.identity && pathContainer == null)
             transform.localRotation = Quaternion.identity;
-        }
 
         if (tileID != lastKnownTileID && tileID > 0)
         {
@@ -87,32 +103,32 @@ public class Tiles : MonoBehaviour
             lastKnownTileID = tileID;
         }
 
+        // Logic otomatis update tipe target (Snake/Ladder)
         if (type != lastKnownType || targetTile != lastKnownTarget)
         {
+            // Reset target lama jika berubah
             if (lastKnownTarget != null && lastKnownTarget != targetTile)
-            {
                 lastKnownTarget.SetType(TileType.Normal, true);
-            }
+
+            // Set target baru
             if (type == TileType.LadderStart && targetTile != null)
-            {
                 targetTile.SetType(TileType.LadderEnd, true);
-            }
             else if (type == TileType.SnakeStart && targetTile != null)
-            {
                 targetTile.SetType(TileType.SnakeEnd, true);
-            }
+
+            // Jika kembali ke normal
             if (type == TileType.Normal && lastKnownTarget != null)
             {
                 if (lastKnownType == TileType.LadderStart || lastKnownType == TileType.SnakeStart)
                     lastKnownTarget.SetType(TileType.Normal, true);
             }
+
             lastKnownTarget = targetTile;
             lastKnownType = type;
         }
-        if ((type == TileType.LadderEnd || type == TileType.SnakeEnd))
-        {
-            if (targetTile != null) targetTile = null;
-        }
+
+        // Nama object rapi di hierarchy
+        gameObject.name = $"Tile_{tileID}_{type}";
 
         UpdateVisualModel();
         UpdateTileNumber();
@@ -123,10 +139,7 @@ public class Tiles : MonoBehaviour
     {
         type = newType;
         UpdateVisualModel();
-        if (fromScript)
-        {
-            lastKnownType = type;
-        }
+        if (fromScript) lastKnownType = type;
     }
 
     [ContextMenu("Auto-Assign Child Models")]
@@ -136,121 +149,84 @@ public class Tiles : MonoBehaviour
         string theme = (tileID % 2 != 0) ? "Emas" : "Putih";
 
         Transform textChild = transform.Find("Text (TMP)");
-        if (textChild != null)
-        {
-            tileNumberText = textChild.GetComponent<TextMeshPro>();
-        }
+        if (textChild != null) tileNumberText = textChild.GetComponent<TextMeshPro>();
 
         Transform containerChild = transform.Find("PathContainer");
-        if (containerChild != null)
-        {
-            pathContainer = containerChild;
-        }
-        else
-        {
-            Debug.LogError($"AutoAssign GAGAL: Tidak menemukan 'PathContainer' di {gameObject.name}. ", gameObject);
-            return;
-        }
+        if (containerChild != null) pathContainer = containerChild;
 
+        // Cari model berdasarkan nama (sesuai aset kamu)
         normalModel = FindChildModel(transform, "Tile_" + theme);
         snakeStartModel = FindChildModel(transform, "Tile_Snake");
         ladderStartModel = FindChildModel(transform, "Tile_Tangga" + theme);
         snakeEndModel = FindChildModel(transform, "Tile_Buntut" + theme);
         ladderEndModel = FindChildModel(transform, "Tile_Tangga" + theme);
-        
-        // --- INI PERBAIKANNYA ---
         blessingCardModel = FindChildModel(transform, "Tile_" + theme + "Plate");
-        // ------------------------
 
-        snakePathStraightModel = FindChildModel(pathContainer, "Tile_JalurBuntutLurus" + theme);
-        snakePathBendModel1 = FindChildModel(pathContainer, "Tile_JalurBuntutBelok" + theme + "_1");
-        snakePathBendModel2 = FindChildModel(pathContainer, "Tile_JalurBuntutBelok" + theme + "_2");
+        // Cari model path
+        if (pathContainer != null)
+        {
+            snakePathStraightModel = FindChildModel(pathContainer, "Tile_JalurBuntutLurus" + theme);
+            snakePathBendModel1 = FindChildModel(pathContainer, "Tile_JalurBuntutBelok" + theme + "_1");
+            snakePathBendModel2 = FindChildModel(pathContainer, "Tile_JalurBuntutBelok" + theme + "_2");
+        }
+
+        // Note: Model Attack/Boss/Nega mungkin belum ada di aset lamamu,
+        // jadi assign manual di inspector jika sudah ada prefabnya.
     }
 
-    GameObject FindChildModel(Transform parentToSearch, string childName)
+    GameObject FindChildModel(Transform parent, string name)
     {
-        if (parentToSearch == null) return null;
-        Transform child = parentToSearch.Find(childName);
+        if (parent == null) return null;
+        Transform child = parent.Find(name);
         return (child != null) ? child.gameObject : null;
     }
 
     public void UpdateTileNumber()
     {
-        if (tileNumberText != null)
-        {
-            tileNumberText.text = tileID.ToString();
-        }
+        if (tileNumberText != null) tileNumberText.text = tileID.ToString();
     }
 
     public void UpdateVisualModel()
     {
-        if (normalModel != null) normalModel.SetActive(false);
-        if (snakeStartModel != null) snakeStartModel.SetActive(false);
-        if (ladderStartModel != null) ladderStartModel.SetActive(false);
-        if (snakeEndModel != null) snakeEndModel.SetActive(false);
-        if (ladderEndModel != null) ladderEndModel.SetActive(false);
-        if (blessingCardModel != null) blessingCardModel.SetActive(false);
-        if (snakePathStraightModel != null) snakePathStraightModel.SetActive(false);
-        if (snakePathBendModel1 != null) snakePathBendModel1.SetActive(false);
-        if (snakePathBendModel2 != null) snakePathBendModel2.SetActive(false);
+        // Matikan semua dulu
+        if (normalModel) normalModel.SetActive(false);
+        if (snakeStartModel) snakeStartModel.SetActive(false);
+        if (ladderStartModel) ladderStartModel.SetActive(false);
+        if (snakeEndModel) snakeEndModel.SetActive(false);
+        if (ladderEndModel) ladderEndModel.SetActive(false);
+        if (blessingCardModel) blessingCardModel.SetActive(false);
+        if (attackModel) attackModel.SetActive(false);
+        if (bossModel) bossModel.SetActive(false);
+        if (negaModel) negaModel.SetActive(false);
 
-        if (pathContainer != null)
-        {
-            bool isPath = (type == TileType.SnakePathStraight ||
-                           type == TileType.SnakePathBend1 ||
-                           type == TileType.SnakePathBend2);
-            if (isPath)
-            {
-                if (transform.localRotation != Quaternion.identity)
-                {
-                    pathContainer.localRotation = transform.localRotation;
-                    transform.localRotation = Quaternion.identity;
-                }
-            }
-            else
-            {
-                pathContainer.localRotation = Quaternion.identity;
-            }
-        }
+        // Path models
+        if (snakePathStraightModel) snakePathStraightModel.SetActive(false);
+        if (snakePathBendModel1) snakePathBendModel1.SetActive(false);
+        if (snakePathBendModel2) snakePathBendModel2.SetActive(false);
 
+        // Aktifkan sesuai tipe
         switch (type)
         {
-            case TileType.Normal:
-                if (normalModel != null) normalModel.SetActive(true);
-                break;
-            case TileType.SnakeStart:
-                if (snakeStartModel != null) snakeStartModel.SetActive(true);
-                break;
-            case TileType.LadderStart:
-                if (ladderStartModel != null) ladderStartModel.SetActive(true);
-                break;
-            case TileType.SnakeEnd:
-                if (snakeEndModel != null) snakeEndModel.SetActive(true);
-                break;
-            case TileType.LadderEnd:
-                if (ladderEndModel != null) ladderEndModel.SetActive(true);
-                break;
-            case TileType.BlessingCard:
-                if (blessingCardModel != null) blessingCardModel.SetActive(true);
-                break;
-            case TileType.SnakePathStraight:
-                if (snakePathStraightModel != null) snakePathStraightModel.SetActive(true);
-                break;
-            case TileType.SnakePathBend1:
-                if (snakePathBendModel1 != null) snakePathBendModel1.SetActive(true);
-                break;
-            case TileType.SnakePathBend2:
-                if (snakePathBendModel2 != null) snakePathBendModel2.SetActive(true);
-                break;
+            case TileType.Normal: if (normalModel) normalModel.SetActive(true); break;
+            case TileType.SnakeStart: if (snakeStartModel) snakeStartModel.SetActive(true); break;
+            case TileType.LadderStart: if (ladderStartModel) ladderStartModel.SetActive(true); break;
+            case TileType.SnakeEnd: if (snakeEndModel) snakeEndModel.SetActive(true); break;
+            case TileType.LadderEnd: if (ladderEndModel) ladderEndModel.SetActive(true); break;
+            case TileType.BlessingCard: if (blessingCardModel) blessingCardModel.SetActive(true); break;
+
+            // Tipe Baru
+            case TileType.Attack: if (attackModel) attackModel.SetActive(true); else if (normalModel) normalModel.SetActive(true); break;
+            case TileType.Boss: if (bossModel) bossModel.SetActive(true); else if (normalModel) normalModel.SetActive(true); break;
+            case TileType.Nega: if (negaModel) negaModel.SetActive(true); else if (normalModel) normalModel.SetActive(true); break;
+
+            // Paths
+            case TileType.SnakePathStraight: if (snakePathStraightModel) snakePathStraightModel.SetActive(true); break;
+            case TileType.SnakePathBend1: if (snakePathBendModel1) snakePathBendModel1.SetActive(true); break;
+            case TileType.SnakePathBend2: if (snakePathBendModel2) snakePathBendModel2.SetActive(true); break;
         }
     }
 
-    public Vector3 GetPlayerPosition()
-    {
-        return originalPosition + Vector3.up * 0.5f;
-    }
-
-    #region Gizmos
+    // --- GIZMOS (Script Lama) ---
     void OnDrawGizmos()
     {
         if (targetTile == null) return;
@@ -269,11 +245,10 @@ public class Tiles : MonoBehaviour
     void DrawGizmoArrow(Vector3 start, Vector3 end)
     {
         Gizmos.DrawLine(start, end);
-        Vector3 direction = (end - start).normalized;
-        Vector3 right = Quaternion.LookRotation(direction) * Quaternion.Euler(0, 1, 0) * Vector3.forward;
-        Vector3 left = Quaternion.LookRotation(direction) * Quaternion.Euler(0, -1, 0) * Vector3.forward;
+        Vector3 dir = (end - start).normalized;
+        Vector3 right = Quaternion.LookRotation(dir) * Quaternion.Euler(0, 1, 0) * Vector3.forward;
+        Vector3 left = Quaternion.LookRotation(dir) * Quaternion.Euler(0, -1, 0) * Vector3.forward;
         Gizmos.DrawRay(end, right * -0.5f);
         Gizmos.DrawRay(end, left * -0.5f);
     }
-    #endregion
 }

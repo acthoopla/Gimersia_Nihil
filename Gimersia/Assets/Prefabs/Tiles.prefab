@@ -12,7 +12,7 @@ GameObject:
   - component: {fileID: 404588560165370419}
   - component: {fileID: 1731637340603181310}
   m_Layer: 0
-  m_Name: Tiles
+  m_Name: Tile_0_Normal
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
@@ -81,18 +81,22 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   tileID: 0
   type: 0
-  tileNumberText: {fileID: 5860929292229797379}
   targetTile: {fileID: 0}
+  playerStandPoint: {fileID: 0}
+  tileNumberText: {fileID: 5860929292229797379}
   pathContainer: {fileID: 0}
   normalModel: {fileID: 353101790860569556}
   snakeStartModel: {fileID: 4753400786415293348}
   ladderStartModel: {fileID: 890821727590189772}
   snakeEndModel: {fileID: 0}
   ladderEndModel: {fileID: 0}
+  blessingCardModel: {fileID: 0}
+  attackModel: {fileID: 0}
+  bossModel: {fileID: 0}
+  negaModel: {fileID: 0}
   snakePathStraightModel: {fileID: 0}
   snakePathBendModel1: {fileID: 0}
   snakePathBendModel2: {fileID: 0}
-  blessingCardModel: {fileID: 0}
   lastKnownTarget: {fileID: 0}
   lastKnownType: 0
   lastKnownTileID: -1
