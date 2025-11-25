@@ -36588,18 +36588,15 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   boardManager: {fileID: 1380648346}
   tilesPerRow: 10
+  totalTilesInBoard: 100
+  cardPoolPerRow: 2
+  negatileDamagePerRow: 2
+  negatileDebuffPerRow: 1
+  attackPerRow: 3
   ladderCount: 3
   snakeCount: 3
-  cardRandomPerRow: 1
-  cardMovementPerRow: 1
-  cardBuffPerRow: 1
-  attackPerRow: 1
-  damagePerRow: 1
-  disarmPerRow: 1
-  provocationPerRow: 1
-  despairPerRow: 1
-  randomSeed: 0
   useSeed: 0
+  randomSeed: 0
   autoGenerateOnStart: 0
   crackedChance: 0.5
 --- !u!114 &1380648352
