@@ -8,23 +8,34 @@ public class TurnManager : MonoBehaviour
 {
     public static TurnManager Instance { get; private set; }
 
-    public enum TurnState { Idle, Rolling, StrategyPhase, Moving, ResolveTile, EndTurn, GameOver }
+    public enum TurnState
+    {
+        Idle,
+        StartTurn,
+        StrategyPhase,  // FASE GABUNGAN (Bebas Lempar Dadu & Pilih Kartu)
+        Executing,      // Saat GO ditekan (Sedang jalan)
+        EndTurn,
+        GameOver
+    }
+
+    [Header("Turn Settings")]
+    public float delayBetweenTurns = 0.5f;
+
+    public List<PlayerState> players = new List<PlayerState>();
+    private int currentIndex = 0;
     public TurnState state = TurnState.Idle;
+
+    private PlayerState currentPlayer => (players.Count > 0) ? players[currentIndex] : null;
+
+    // Flags & Data
+    private int currentDiceRoll = 0; // Menyimpan hasil dadu
+    private bool hasRolledDice = false; // Cek apakah sudah lempar dadu?
+    private bool awaitingMovement = false;
+    private bool awaitingTileResolve = false;
 
     [Header("References")]
     public DiceController diceController;
     public DiceInputHandler diceInputHandler;
-
-    public List<PlayerState> players = new List<PlayerState>();
-    private int currentIndex = 0;
-    private PlayerState currentPlayer => (players.Count > 0) ? players[currentIndex] : null;
-
-    // Variabel Dadu & Tombol
-    private int currentRollValue = 0;
-    private bool goButtonPressed = false;
-
-    // Variabel untuk Tile System (biar ga error)
-    private bool awaitingTileResolve = false;
 
     void Awake() { if (Instance == null) Instance = this; else Destroy(gameObject); }
 
@@ -42,46 +53,62 @@ public class TurnManager : MonoBehaviour
     }
 
     // =======================================================================
-    // BAGIAN INI YANG MEMPERBAIKI ERROR (JANGAN DIHAPUS)
+    // PUBLIC API
     // =======================================================================
 
-    // 1. Fix Error di NewGameManager (Butuh 2 argumen)
     public void StartGame(List<PlayerState> playerStates, int startIndex = 0)
     {
+        if (playerStates == null || playerStates.Count == 0) return;
         players = new List<PlayerState>(playerStates);
         currentIndex = Mathf.Clamp(startIndex, 0, players.Count - 1);
         StartCoroutine(RunTurnLoop());
     }
 
-    // 2. Fix Error di TileEffectSystem (Butuh fungsi ini)
+    // Dipanggil otomatis saat dadu berhenti
+    private void HandleDiceResult(int result)
+    {
+        // Hanya terima hasil dadu saat fase Strategi
+        if (state != TurnState.StrategyPhase) return;
+
+        currentDiceRoll = result;
+        hasRolledDice = true;
+
+        // Matikan input dadu agar tidak lempar 2x (Opsional)
+        if (diceInputHandler) diceInputHandler.InputEnabled = false;
+
+        // Update Teks UI
+        if (UIController.Instance != null) UIController.Instance.UpdateDiceText(result);
+
+        Debug.Log($"[TurnManager] Dadu Disimpan: {currentDiceRoll}");
+    }
+
     public void NotifyTileResolveComplete(PlayerState player)
     {
-        if (state == TurnState.ResolveTile && player == currentPlayer)
-        {
-            awaitingTileResolve = false;
-        }
+        if (player == currentPlayer) awaitingTileResolve = false;
     }
 
-    // 3. Fix Error di SlotUIManager (Butuh fungsi ini)
-    // FUNGSI INI JUGA YANG DIPANGGIL TOMBOL GO
+    // DIPANGGIL TOMBOL GO
     public void OnExecuteButtonPressed()
     {
-        // Hanya respon kalau lagi fase Strategy (setelah dadu, sebelum jalan)
-        if (state == TurnState.StrategyPhase)
+        if (state != TurnState.StrategyPhase) return;
+
+        // Validasi: Harus lempar dadu dulu sebelum jalan!
+        if (!hasRolledDice)
         {
-            Debug.Log(">>> TOMBOL GO DITEKAN! LANJUT JALAN! <<<");
-            goButtonPressed = true;
+            Debug.LogWarning("Harap lempar dadu terlebih dahulu sebelum GO!");
+            return; // Jangan jalan kalau belum ada dadu
         }
+
+        // Mulai Eksekusi
+        StartCoroutine(ExecuteStrategySequence());
     }
 
-    // Alias untuk UIController kamu (OnGoPressed -> OnExecuteButtonPressed)
-    public void OnGoPressed()
-    {
-        OnExecuteButtonPressed();
-    }
+    public void ExecutePendingQueue() => OnExecuteButtonPressed();
+    public void OnGoPressed() => OnExecuteButtonPressed();
+
 
     // =======================================================================
-    // LOGIKA UTAMA (Dice -> Go -> Move)
+    // LOGIKA UTAMA
     // =======================================================================
 
     private IEnumerator RunTurnLoop()
@@ -90,98 +117,172 @@ public class TurnManager : MonoBehaviour
         {
             if (players.Count == 0) yield break;
 
-            // --- 1. MULAI GILIRAN ---
-            state = TurnState.Rolling;
-            goButtonPressed = false;
-            currentRollValue = 0;
+            // 1. START TURN
+            state = TurnState.StartTurn;
+            PlayerState p = currentPlayer;
 
-            // RESET POSISI DADU AGAR KEMBALI KE TENGAH/AWAL
-            if (diceController != null)
-            {
-                diceController.ResetState(); // <--- TAMBAHKAN BARIS INI
-            }
+            Debug.Log($"=== Giliran {p.name} ===");
+            EventBus.TurnStarted(p);
+            p.ResetTemporaryStatus();
+            yield return null;
 
-            Debug.Log($"Giliran {currentPlayer.name}. Silakan Lempar Dadu.");
+            // 2. STRATEGY PHASE (BEBAS: Lempar Dadu / Pilih Kartu)
+            state = TurnState.StrategyPhase;
 
-            // Nyalakan input dadu
+            // Reset Variables
+            currentDiceRoll = 0;
+            hasRolledDice = false;
+
+            // Reset Dadu Visual
+            if (diceController != null) diceController.ResetState();
+
+            // Aktifkan Input Dadu
             if (diceInputHandler) diceInputHandler.InputEnabled = true;
 
-            // --- 2. TUNGGU DADU ---
-            while (state == TurnState.Rolling) yield return null;
+            // Tampilkan Panel Modifier (Kosong Awalnya)
+            if (UIController.Instance != null)
+            {
+                UIController.Instance.ShowModifierPanel();
+                UIController.Instance.UpdateDiceText(0); // Reset teks dadu
+            }
 
-            // --- 3. TUNGGU TOMBOL GO ---
-            Debug.Log($"Dadu: {currentRollValue}. Tekan GO di UI untuk jalan.");
+            Debug.Log("Fase Strategi: Silakan Lempar Dadu & Pilih Kartu, lalu tekan GO.");
 
-            // Game PAUSE disini sampai kamu tekan tombol GO
-            while (!goButtonPressed)
+            // GAME PAUSE DISINI: Menunggu fungsi OnExecuteButtonPressed() dipanggil
+            while (state == TurnState.StrategyPhase)
             {
                 yield return null;
             }
 
-            // --- 4. BERGERAK ---
-            yield return StartCoroutine(MoveSequence());
+            // ... Script lanjut ke ExecuteStrategySequence (yang mengubah state ke Executing) ...
 
-            // --- 5. GANTI PEMAIN ---
-            currentIndex = (currentIndex + 1) % players.Count;
-            yield return new WaitForSeconds(0.5f);
+            // Tunggu sampai semua animasi & logic selesai (EndTurn)
+            while (state != TurnState.EndTurn && state != TurnState.GameOver)
+            {
+                yield return null;
+            }
+
+            // 3. END TURN
+            EventBus.TurnEnded(p);
+            AdvanceToNextActivePlayer();
+            yield return new WaitForSeconds(delayBetweenTurns);
         }
     }
 
-    // Dipanggil otomatis saat dadu berhenti
-    private void HandleDiceResult(int result)
+    // =======================================================================
+    // URUTAN EKSEKUSI (DADU -> KARTU)
+    // =======================================================================
+
+    private IEnumerator ExecuteStrategySequence()
     {
-        if (state != TurnState.Rolling) return;
+        state = TurnState.Executing; // Kunci state agar tidak bisa input lagi
 
-        currentRollValue = result;
+        if (UIController.Instance != null) UIController.Instance.HideModifierPanel();
 
-        // Matikan input dadu biar ga dilempar lagi
-        if (diceInputHandler) diceInputHandler.InputEnabled = false;
+        Debug.Log(">>> MEMULAI EKSEKUSI URUTAN <<<");
 
-        // Pindah ke fase tunggu tombol GO
-        state = TurnState.StrategyPhase;
+        // -------------------------------------------------
+        // LANGKAH 1: JALANKAN DADU DULUAN (Sesuai Request)
+        // -------------------------------------------------
+        Debug.Log($"[Sequence] 1. Menjalankan Dadu: {currentDiceRoll} langkah.");
+
+        // Hitung target dadu
+        int startTile = currentPlayer.TileID;
+        int targetWithDice = startTile + currentDiceRoll;
+
+        // Jalankan Pawn (Dadu)
+        yield return StartCoroutine(MovePawnTo(currentPlayer, targetWithDice));
+
+        yield return new WaitForSeconds(0.5f); // Jeda nafas
+
+        // -------------------------------------------------
+        // LANGKAH 2: JALANKAN KARTU (MODIFIER) SATU PER SATU
+        // -------------------------------------------------
+        List<NewCardData> cards = currentPlayer.GetAndClearPending();
+
+        if (cards.Count > 0)
+        {
+            Debug.Log($"[Sequence] 2. Menjalankan {cards.Count} Kartu Modifier.");
+
+            foreach (NewCardData card in cards)
+            {
+                Debug.Log($"[Logic Card] Mengaktifkan: {card.cardName}");
+
+                // A. Jalankan Logic Effect
+                card.Play(currentPlayer);
+                currentPlayer.ConsumeSelectedCard(card);
+
+                // B. Cek apakah Pawn Perlu Bergerak (Jika kartu movement)
+                // Kita cek flag IsMoving dari Pawn. Tapi karena Play() di atas mungkin
+                // memicu coroutine MoveToTile di Pawn, kita tunggu.
+
+                yield return null; // Tunggu 1 frame
+
+                if (currentPlayer.pawn != null && currentPlayer.pawn.IsMoving)
+                {
+                    // Tunggu Pawn Sampai
+                    float timeOut = 3f;
+                    while (currentPlayer.pawn.IsMoving && timeOut > 0)
+                    {
+                        timeOut -= Time.deltaTime;
+                        yield return null;
+                    }
+                }
+
+                yield return new WaitForSeconds(0.5f); // Jeda antar kartu
+            }
+        }
+
+        // -------------------------------------------------
+        // LANGKAH 3: SELESAI
+        // -------------------------------------------------
+        Debug.Log("[Sequence] Semua Selesai. Giliran Berakhir.");
+        state = TurnState.EndTurn;
     }
 
-    private IEnumerator MoveSequence()
+    // Helper untuk menggerakkan pawn (Logic Validasi Papan)
+    private IEnumerator MovePawnTo(PlayerState player, int targetTile)
     {
-        state = TurnState.Moving;
-
-        int startTile = currentPlayer.TileID;
-
-        // Hitung target (Dadu + Modifier Kartu kalau ada)
-        int moves = currentRollValue + currentPlayer.nextRollModifier;
-        currentPlayer.nextRollModifier = 0; // Reset modifier
-
-        int targetTile = Mathf.Max(1, startTile + moves);
-
-        // Cek Batas Board
+        // Validasi Max Board
         int maxTile = (BoardManager.Instance != null) ? BoardManager.Instance.totalTiles : 100;
+
+        // Validasi Min Board
+        if (targetTile < 1) targetTile = 1;
+
+        // Logic Bounce (Memantul jika lebih)
         if (targetTile > maxTile)
         {
             int overshoot = targetTile - maxTile;
             targetTile = maxTile - overshoot;
         }
 
-        // Panggil Movement System
+        // Panggil Sistem Gerak
+        awaitingMovement = true;
         if (MovementSystem.Instance != null)
         {
-            yield return StartCoroutine(MovementSystem.Instance.MovePlayerToTileCoroutine(currentPlayer, targetTile));
+            yield return StartCoroutine(MovementSystem.Instance.MovePlayerToTileCoroutine(player, targetTile));
         }
         else
         {
-            // Fallback teleport
-            currentPlayer.TileID = targetTile;
+            // Fallback Teleport
+            player.TileID = targetTile;
         }
+        awaitingMovement = false;
 
-        // Integrasi Tile Effect System (Wajib ada biar ga error logic, tapi bisa diskip kalau instance null)
-        state = TurnState.ResolveTile;
+        // Tile Resolve (Ular/Tangga/Efek Tile)
+        // Dijalankan setiap kali pawn mendarat (baik karena dadu atau kartu)
+        yield return StartCoroutine(ResolveTileEffect(player));
+    }
+
+    private IEnumerator ResolveTileEffect(PlayerState player)
+    {
         awaitingTileResolve = true;
-
         if (TileEffectSystem.Instance != null)
         {
-            // Tunggu sampai TileEffectSystem panggil NotifyTileResolveComplete
-            // Timeout 2 detik jaga-jaga kalau macet
+            // Tunggu TileEffectSystem bilang "NotifyTileResolveComplete"
+            // (Logic pemanggilan event ada di MovementSystem/EventBus)
             float timer = 0;
-            while (awaitingTileResolve && timer < 2.0f)
+            while (awaitingTileResolve && timer < 2.0f) // Timeout 2 detik
             {
                 timer += Time.deltaTime;
                 yield return null;
@@ -191,7 +292,21 @@ public class TurnManager : MonoBehaviour
         {
             awaitingTileResolve = false;
         }
+    }
 
-        state = TurnState.EndTurn;
+    private void HandleMovementFinished(PlayerState player, int tileID)
+    {
+        if (player == currentPlayer)
+        {
+            var bm = BoardManager.Instance;
+            EventBus.TileLanded(player, bm != null ? bm.GetTileByID(tileID) : null);
+        }
+    }
+
+    private void HandlePlayerDied(PlayerState player) { if (player == currentPlayer) state = TurnState.EndTurn; }
+    private void AdvanceToNextActivePlayer()
+    {
+        if (players.Count == 0) return;
+        currentIndex = (currentIndex + 1) % players.Count;
     }
 }

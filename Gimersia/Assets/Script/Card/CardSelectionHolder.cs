@@ -226,20 +226,46 @@ public class CardSelectionHolder : MonoBehaviour
 
     private IEnumerator AnimateUseCards()
     {
-        List<CardVisual> cardsToUse = CollectAllCardVisuals();
-        List<BaseCard> cardComponents = GetCardsInSelection();
+        List<CardVisual> visualsToUse = CollectAllCardVisuals();
 
-        Debug.Log($"Using {cardsToUse.Count} cards: {string.Join(", ", cardComponents.Select(c => c.GetCardName()))}");
+        if (UIController.Instance != null)
+        {
+            UIController.Instance.ShowModifierPanel();
+        }
 
+        Debug.Log("Fase Visual: Animasi & Masuk Antrean...");
         HideButtons();
 
-        ExecuteCardEffects(cardComponents);
+        for (int i = 0; i < visualsToUse.Count; i++)
+        {
+            CardVisual visual = visualsToUse[i];
 
-        yield return StartCoroutine(AnimateCardsSequentially(cardsToUse, true));
+            if (visual != null)
+            {
+                var logicComp = visual.GetComponent<GameCard>();
+                if (logicComp != null)
+                {
+                    NewCardData data = logicComp.GetCardData();
 
-        DestroyCards(cardsToUse);
+                    if (currentPlayer != null)
+                        currentPlayer.AddToPending(data);
+
+                    if (UIController.Instance != null)
+                    {
+                        UIController.Instance.AddModifierLog(data.cardName);
+                    }
+                }
+
+                visual.AnimateUseCard();
+            }
+
+            yield return new WaitForSeconds(0.3f);
+        }
+
+        yield return new WaitForSeconds(0.5f);
+
+        DestroyCards(visualsToUse);
         ClearSelectionList();
-        UpdateButtonVisibility();
     }
 
     private void ExecuteCardEffects(List<BaseCard> cards)
