@@ -87,10 +87,10 @@ MonoBehaviour:
   pathContainer: {fileID: 0}
   normalModel: {fileID: 353101790860569556}
   snakeStartModel: {fileID: 4753400786415293348}
-  ladderStartModel: {fileID: 890821727590189772}
-  snakeEndModel: {fileID: 0}
-  ladderEndModel: {fileID: 0}
-  blessingCardModel: {fileID: 0}
+  ladderStartModel: {fileID: 649752034305283524}
+  snakeEndModel: {fileID: 3675593071627720414}
+  ladderEndModel: {fileID: 649752034305283524}
+  blessingCardModel: {fileID: 890821727590189772}
   attackModel: {fileID: 0}
   bossModel: {fileID: 0}
   negaModel: {fileID: 0}
@@ -443,6 +443,11 @@ PrefabInstance:
 --- !u!4 &166548132009267070 stripped
 Transform:
   m_CorrespondingSourceObject: {fileID: -8679921383154817045, guid: 27d2e74a456ffeb4b9763580e3770faf, type: 3}
+  m_PrefabInstance: {fileID: 415751570338588821}
+  m_PrefabAsset: {fileID: 0}
+--- !u!1 &649752034305283524 stripped
+GameObject:
+  m_CorrespondingSourceObject: {fileID: 919132149155446097, guid: 27d2e74a456ffeb4b9763580e3770faf, type: 3}
   m_PrefabInstance: {fileID: 415751570338588821}
   m_PrefabAsset: {fileID: 0}
 --- !u!1001 &587457950998681221
@@ -973,6 +978,11 @@ PrefabInstance:
     m_AddedGameObjects: []
     m_AddedComponents: []
   m_SourcePrefab: {fileID: 100100000, guid: 554903e5f6d0e6041a029834d0fa4d41, type: 3}
+--- !u!1 &3675593071627720414 stripped
+GameObject:
+  m_CorrespondingSourceObject: {fileID: 919132149155446097, guid: 554903e5f6d0e6041a029834d0fa4d41, type: 3}
+  m_PrefabInstance: {fileID: 4594583928035928975}
+  m_PrefabAsset: {fileID: 0}
 --- !u!4 &4055918900531006564 stripped
 Transform:
   m_CorrespondingSourceObject: {fileID: -8679921383154817045, guid: 554903e5f6d0e6041a029834d0fa4d41, type: 3}
