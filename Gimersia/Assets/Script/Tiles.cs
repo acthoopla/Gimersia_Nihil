@@ -1,8 +1,7 @@
 using UnityEngine;
-using TMPro; // Tetap pakai TMPro sesuai script lamamu
+using TMPro;
 using System.Collections.Generic;
 
-// 1. ENUM DIPERBARUI (Gabungan visual lama + logika baru)
 public enum TileType
 {
     // Basic

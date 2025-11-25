@@ -2,20 +2,7 @@ using System;
 using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
-using static NewCardSystem;
 
-/// <summary>
-/// TileEffectSystem (SRP)
-/// - Resolve efek tile saat player mendarat.
-/// - Subscribe ke EventBus.OnTileLanded (dipanggil oleh TurnManager setelah Movement finished).
-/// - Mendukung: Snake (teleport down), Ladder (teleport up + card reward), BlessingCard (card tile),
-///   Attack tile (damage berdasarkan row atau override via NewTileProperties), Nega tile (damage 1-3 + child effect),
-///   Boss tile (basic hooks).
-/// - Jika tile meresultkan teleport, sistem akan memanggil MovementSystem.RequestMove(...) dan TIDAK memanggil
-///   TurnManager.NotifyTileResolveComplete sampai teleport chain benar-benar selesai (yaitu landing pada tile tanpa teleport).
-/// 
-/// - Ketergantungan (di-check runtime): BoardManager, MovementSystem, CombatSystem, CardSystem, TurnManager
-/// </summary>
 [DisallowMultipleComponent]
 public class TileEffectSystem : MonoBehaviour
 {

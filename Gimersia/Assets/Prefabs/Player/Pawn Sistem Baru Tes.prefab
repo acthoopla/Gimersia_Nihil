@@ -70,9 +70,6 @@ PrefabInstance:
     - targetCorrespondingSourceObject: {fileID: 8819592670676982171, guid: a679f9ca53c215e4bb2e0d7028b2255c, type: 3}
       insertIndex: -1
       addedObject: {fileID: 1256499131174075430}
-    - targetCorrespondingSourceObject: {fileID: 8819592670676982171, guid: a679f9ca53c215e4bb2e0d7028b2255c, type: 3}
-      insertIndex: -1
-      addedObject: {fileID: 3515747989648506400}
   m_SourcePrefab: {fileID: 100100000, guid: a679f9ca53c215e4bb2e0d7028b2255c, type: 3}
 --- !u!1 &1788478385063020155 stripped
 GameObject:
@@ -117,16 +114,16 @@ MonoBehaviour:
   currentHP: 0
   maxHandSize: 6
   hand: []
+  maxSlots: 3
+  selectedCards: []
+  TileID: 1
+  immuneStacks: 0
+  immuneToSnakeUses: 0
+  reflectMultiplier: 0
+  hasDoubleEdge: 0
   defenseFromCards: 0
   nextRollModifier: 0
-  immuneToAllNegativeTurns: 0
-  immuneToSnakeUses: 0
-  getsExtraTurn: 0
-  drawCardNextTurn: 0
-  TileID: 1
-  extraDiceRolls: 0
   pawn: {fileID: 3236365532868735159}
-  hasDoubleEdge: 0
 --- !u!95 &1256499131174075430
 Animator:
   serializedVersion: 5
@@ -148,19 +145,3 @@ Animator:
   m_AllowConstantClipSamplingOptimization: 1
   m_KeepAnimatorStateOnDisable: 0
   m_WriteDefaultValuesOnDisable: 0
---- !u!114 &3515747989648506400
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 1788478385063020155}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: cf15284ee703804428c875affc2b3183, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: 
-  board: {fileID: 0}
-  combat: {fileID: 0}
-  boss: {fileID: 0}
-  rowDamage: 00000000000000000000000000000000000000000000000000000000000000000000000000000000
