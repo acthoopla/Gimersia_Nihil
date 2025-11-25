@@ -303,12 +303,18 @@ public class MultiplayerManager : MonoBehaviour
             // kembalikan font size jika diubah
         }
 
-        // 9. Siapkan UI Gameplay (Turn list & Kartu)
-        if (uiManager != null)
+        // --- FIX DADU 3: Hidupkan dadu SEBELUM game dimulai ---
+        if (physicalDice != null)
         {
-            uiManager.SetupPlayerList(turnOrder);
-            uiManager.UpdateCycle(currentCycle);
+            physicalDice.gameObject.SetActive(true);
+
+            // --- TAMBAHAN PENTING DI SINI ---
+            // Tunggu 1 frame agar script Dice.cs sempat menjalankan Start()
+            // untuk mengambil komponen Rigidbody (rb) dan posisi awal.
+            yield return null;
+            // --------------------------------
         }
+        // -----------------------------------------------------
 
         // 10. Mulai game
         currentTurnIdx = 0;
