@@ -96,6 +96,7 @@ MonoBehaviour:
   targetTile: {fileID: 0}
   playerStandPoint: {fileID: 0}
   tileNumberText: {fileID: 5860929292229797379}
+  pathContainer: {fileID: 0}
   normalModel: {fileID: 353101790860569556}
   normalCrackedModel: {fileID: 0}
   snakeStartModel: {fileID: 4753400786415293348}
@@ -112,6 +113,9 @@ MonoBehaviour:
   cardBuffModel: {fileID: 0}
   cardMoveModel: {fileID: 0}
   cardRandomModel: {fileID: 0}
+  snakePathStraightModel: {fileID: 0}
+  snakePathBendModel1: {fileID: 0}
+  snakePathBendModel2: {fileID: 0}
   lastKnownTarget: {fileID: 0}
   lastKnownType: 0
   lastKnownTileID: -1

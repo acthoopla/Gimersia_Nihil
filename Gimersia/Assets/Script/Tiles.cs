@@ -20,7 +20,7 @@ public enum TileType
 
     Death,
 
-    // Danger 02 (Disarm/Provocation/Despair)
+    // Danger 02
     Disarm,
     DisarmCracked,
     Provocation,
@@ -28,7 +28,7 @@ public enum TileType
     Despair,
     DespairCracked,
 
-    // Danger 01 (Damage)
+    // Danger 01
     Damage,
     DamageCracked,
 
@@ -37,8 +37,11 @@ public enum TileType
     CardMovement,
     CardBuff,
 
-    // Legacy/Fallback (Enum tetap ada biar script lain gak error, tapi visualnya dihapus)
-
+    // Legacy/Fallback 
+    BlessingCard,
+    MysteryCard,
+    Boss,
+    Nega,
     SnakePathStraight,
     SnakePathBend1,
     SnakePathBend2
@@ -57,35 +60,41 @@ public class Tiles : MonoBehaviour
 
     [Header("Visual Components")]
     public TextMeshPro tileNumberText;
+    public Transform pathContainer;
 
-    // --- Model References (Sesuai Gambar & Tema) ---
+    // --- Model References ---
     [Header("Basic Models")]
-    public GameObject normalModel;          // Tile_Emas / Tile_Putih
-    public GameObject normalCrackedModel;   // Tile_EmasCoak / Tile_PutihCoak
+    public GameObject normalModel;
+    public GameObject normalCrackedModel;
 
     [Header("Movement Models")]
-    public GameObject snakeStartModel;      // Tile_Snake
-    public GameObject snakeEndModel;        // Tile_BuntutEmas / Tile_BuntutPutih
-    public GameObject ladderStartModel;     // Tile_TanggaEmas / Tile_TanggaPutih
-    public GameObject ladderEndModel;       // (Visual tangga atas)
+    public GameObject snakeStartModel;
+    public GameObject snakeEndModel;
+    public GameObject ladderStartModel;
+    public GameObject ladderEndModel;
 
     [Header("Combat Models")]
-    public GameObject attackModel;          // Tile_Attack
-    public GameObject attackCrackedModel;   // Tile_Attack_Cracked
-    public GameObject deathModel;           // Tile_Death
+    public GameObject attackModel;
+    public GameObject attackCrackedModel;
+    public GameObject deathModel;
 
     [Header("Danger Models (01 = Damage)")]
-    public GameObject danger01Model;        // Tile_Danger_01
-    public GameObject danger01CrackedModel; // Tile_Danger_Cracked_01
+    public GameObject danger01Model;
+    public GameObject danger01CrackedModel;
 
     [Header("Danger Models (02 = Disarm/etc)")]
-    public GameObject danger02Model;        // Tile_Danger_02
-    public GameObject danger02CrackedModel; // Tile_Danger_Cracked_02
+    public GameObject danger02Model;
+    public GameObject danger02CrackedModel;
 
     [Header("Card Models")]
-    public GameObject cardBuffModel;        // Tile_Card_Buff_Gold / White
-    public GameObject cardMoveModel;        // Tile_Card_Movement_Gold / White
-    public GameObject cardRandomModel;      // Tile_Card_Random_Gold / White
+    public GameObject cardBuffModel;
+    public GameObject cardMoveModel;
+    public GameObject cardRandomModel;
+
+    [Header("Snake Path Models")]
+    public GameObject snakePathStraightModel;
+    public GameObject snakePathBendModel1;
+    public GameObject snakePathBendModel2;
 
     // Internal state
     [SerializeField, HideInInspector] private Tiles lastKnownTarget;
@@ -110,84 +119,123 @@ public class Tiles : MonoBehaviour
         return transform.position + Vector3.up * 0.5f;
     }
 
+    // --- PERBAIKAN LOGIC ONVALIDATE ---
     void OnValidate()
     {
         #region Editor Logic
+        if (transform.localRotation != Quaternion.identity && pathContainer == null)
+            transform.localRotation = Quaternion.identity;
+
         if (tileID != lastKnownTileID && tileID > 0)
         {
             AutoAssignModels();
             lastKnownTileID = tileID;
         }
 
+        // Cek apakah ada perubahan Tipe atau Target
         if (type != lastKnownType || targetTile != lastKnownTarget)
         {
+            // 1. Reset Target Lama (Jika dulu ada target, balikin jadi Normal)
             if (lastKnownTarget != null && lastKnownTarget != targetTile)
+            {
+                // Cek agar tidak mereset tile yang sebenarnya masih jadi target tile lain (opsional, tapi aman)
                 lastKnownTarget.SetType(TileType.Normal, true);
+            }
 
-            if (type == TileType.LadderStart && targetTile != null)
-                targetTile.SetType(TileType.LadderEnd, true);
-            else if (type == TileType.SnakeStart && targetTile != null)
-                targetTile.SetType(TileType.SnakeEnd, true);
+            // 2. Update Target Baru
+            if (targetTile != null)
+            {
+                if (type == TileType.LadderStart)
+                {
+                    targetTile.SetType(TileType.LadderEnd, true);
+                }
+                else if (type == TileType.SnakeStart)
+                {
+                    targetTile.SetType(TileType.SnakeEnd, true);
+                }
+            }
+
+            // 3. Reset Target Tile sendiri jika kita berubah jadi Normal
+            if (type == TileType.Normal && lastKnownTarget != null)
+            {
+                // Jika tipe kita Normal, kita tidak butuh target.
+                // (Opsional: mau kosongkan targetTile atau biarkan reference?)
+                // targetTile = null; // Uncomment jika ingin auto-clear
+            }
 
             lastKnownTarget = targetTile;
             lastKnownType = type;
         }
 
+        // Update Visual Diri Sendiri
         gameObject.name = $"Tile_{tileID}_{type}";
         UpdateVisualModel();
         UpdateTileNumber();
         #endregion
     }
 
+    // --- PERBAIKAN SET TYPE AGAR TERSIMPAN DI EDITOR ---
     public void SetType(TileType newType, bool fromScript = false)
     {
         type = newType;
         UpdateVisualModel();
-        if (fromScript) lastKnownType = type;
+
+        if (fromScript)
+        {
+            lastKnownType = type;
+        }
+
+        // MAGIC FIX: Beritahu Unity Editor bahwa object ini berubah!
+#if UNITY_EDITOR
+        if (!Application.isPlaying)
+        {
+            UnityEditor.EditorUtility.SetDirty(this);
+            // Jika object targetnya adalah prefab instance, ini membantu record perubahannya
+            // UnityEditor.PrefabUtility.RecordPrefabInstancePropertyModifications(this); 
+        }
+#endif
     }
 
-    // --- LOGIC AUTO ASSIGN (Sesuai Request Ganjil/Genap) ---
     [ContextMenu("Auto-Assign Child Models")]
     void AutoAssignModels()
     {
         if (tileID <= 0) return;
-
-        // ATURAN: Ganjil = Emas, Genap = Putih
         string theme = (tileID % 2 != 0) ? "Emas" : "Putih";
-
-        // Untuk Kartu, nama filenya pakai bahasa Inggris (Gold/White)
         string cardTheme = (tileID % 2 != 0) ? "Gold" : "White";
 
         Transform textChild = transform.Find("Text (TMP)");
         if (textChild != null) tileNumberText = textChild.GetComponent<TextMeshPro>();
 
-        // --- Cari Model Berdasarkan Tema ---
+        Transform containerChild = transform.Find("PathContainer");
+        if (containerChild != null) pathContainer = containerChild;
 
-        // Basic
         normalModel = FindChildModel(transform, "Tile_" + theme);
         normalCrackedModel = FindChildModel(transform, "Tile_" + theme + "Coak");
 
-        // Movement
-        snakeStartModel = FindChildModel(transform, "Tile_Snake"); // Biasanya Snake cuma 1 warna/umum
+        snakeStartModel = FindChildModel(transform, "Tile_Snake");
         snakeEndModel = FindChildModel(transform, "Tile_Buntut" + theme);
         ladderStartModel = FindChildModel(transform, "Tile_Tangga" + theme);
         ladderEndModel = FindChildModel(transform, "Tile_Tangga" + theme);
 
-        // Combat
         attackModel = FindChildModel(transform, "Tile_Attack");
         attackCrackedModel = FindChildModel(transform, "Tile_Attack_Cracked");
         deathModel = FindChildModel(transform, "Tile_Death");
 
-        // Dangers
         danger01Model = FindChildModel(transform, "Tile_Danger_01");
         danger01CrackedModel = FindChildModel(transform, "Tile_Danger_Cracked_01");
         danger02Model = FindChildModel(transform, "Tile_Danger_02");
         danger02CrackedModel = FindChildModel(transform, "Tile_Danger_Cracked_02");
 
-        // Cards
         cardRandomModel = FindChildModel(transform, "Tile_Card_Random_" + cardTheme);
         cardBuffModel = FindChildModel(transform, "Tile_Card_Buff_" + cardTheme);
         cardMoveModel = FindChildModel(transform, "Tile_Card_Movement_" + cardTheme);
+
+        if (pathContainer != null)
+        {
+            snakePathStraightModel = FindChildModel(pathContainer, "Tile_JalurBuntutLurus" + theme);
+            snakePathBendModel1 = FindChildModel(pathContainer, "Tile_JalurBuntutBelok" + theme + "_1");
+            snakePathBendModel2 = FindChildModel(pathContainer, "Tile_JalurBuntutBelok" + theme + "_2");
+        }
     }
 
     GameObject FindChildModel(Transform parent, string name)
@@ -226,6 +274,10 @@ public class Tiles : MonoBehaviour
         if (cardBuffModel) cardBuffModel.SetActive(false);
         if (cardMoveModel) cardMoveModel.SetActive(false);
 
+        if (snakePathStraightModel) snakePathStraightModel.SetActive(false);
+        if (snakePathBendModel1) snakePathBendModel1.SetActive(false);
+        if (snakePathBendModel2) snakePathBendModel2.SetActive(false);
+
         // 2. Nyalakan Sesuai Tipe
         switch (type)
         {
@@ -246,13 +298,14 @@ public class Tiles : MonoBehaviour
             // Death
             case TileType.Death: if (deathModel) deathModel.SetActive(true); break;
 
-            // Danger 01 (Damage) -> Map ke Model Danger 01
+            // Danger 01
             case TileType.Damage:
+            case TileType.Nega:
                 if (danger01Model) danger01Model.SetActive(true); break;
             case TileType.DamageCracked:
                 if (danger01CrackedModel) danger01CrackedModel.SetActive(true); else if (danger01Model) danger01Model.SetActive(true); break;
 
-            // Danger 02 (Disarm / Provoke / Despair) -> Map ke Model Danger 02
+            // Danger 02
             case TileType.Disarm:
             case TileType.Provocation:
             case TileType.Despair:
@@ -265,16 +318,22 @@ public class Tiles : MonoBehaviour
 
             // Cards
             case TileType.CardRandom:
+            case TileType.BlessingCard:
+            case TileType.MysteryCard:
                 if (cardRandomModel) cardRandomModel.SetActive(true); break;
 
             case TileType.CardMovement: if (cardMoveModel) cardMoveModel.SetActive(true); break;
             case TileType.CardBuff: if (cardBuffModel) cardBuffModel.SetActive(true); break;
 
+            // Paths
+            case TileType.SnakePathStraight: if (snakePathStraightModel) snakePathStraightModel.SetActive(true); break;
+            case TileType.SnakePathBend1: if (snakePathBendModel1) snakePathBendModel1.SetActive(true); break;
+            case TileType.SnakePathBend2: if (snakePathBendModel2) snakePathBendModel2.SetActive(true); break;
+
             default: if (normalModel) normalModel.SetActive(true); break;
         }
     }
 
-    // GIZMOS (Tetap ada untuk debugging)
     void OnDrawGizmos()
     {
         if (targetTile == null) return;
