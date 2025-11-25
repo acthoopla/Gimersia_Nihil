@@ -1,18 +1,42 @@
-using System.Collections;
-using System.Collections.Generic;
 using UnityEngine;
+using UnityEngine.UI;
+using TMPro;
 
 public class UIController : MonoBehaviour
 {
-    // Start is called before the first frame update
+    [Header("References")]
+    public Button goButton;
+    public TextMeshProUGUI diceRollText;
+
     void Start()
     {
-        
+        if (goButton != null)
+            goButton.onClick.AddListener(OnGoClicked);
     }
 
-    // Update is called once per frame
-    void Update()
+    void OnEnable()
     {
-        
+        var dice = FindObjectOfType<DiceController>();
+        if (dice != null) dice.OnDiceResult += UpdateDiceText;
+    }
+
+    void OnDisable()
+    {
+        var dice = FindObjectOfType<DiceController>();
+        if (dice != null) dice.OnDiceResult -= UpdateDiceText;
+    }
+
+    void UpdateDiceText(int result)
+    {
+        if (diceRollText != null) diceRollText.text = "Roll: " + result;
+    }
+
+    public void OnGoClicked()
+    {
+        // Panggil TurnManager untuk lanjut jalan
+        if (TurnManager.Instance != null)
+        {
+            TurnManager.Instance.OnGoPressed();
+        }
     }
 }
