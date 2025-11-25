@@ -21,325 +21,202 @@ public class TileEffectSystem : MonoBehaviour
 {
     public static TileEffectSystem Instance { get; private set; }
 
-    // Row damage mapping sesuai GDD (index 1..10 used)
-    private readonly Dictionary<int, int> rowDamage = new Dictionary<int, int>()
-    {
-        {1, 1}, {2, 2}, {3, 2}, {4, 3}, {5, 4}, {6, 5}, {7, 6}, {8, 8}, {9, 9}, {10, 10}
-    };
+    [Header("Animation Settings (Ladder)")]
+    public GameObject ladderStepPrefab;
+    public float ladderDeployHeight = 10f;
+    public float ladderDeploySpeed = 15f;
+    public float ladderStepDelay = 0.05f;
+    public float ladderVerticalOffset = 0.1f;
 
-    void OnEnable()
-    {
-        EventBus.OnTileLanded += HandleTileLanded;
-    }
+    [Header("Animation Settings (Snake)")]
+    public GameObject snakeParticle;
+    public float snakeAnimationHeight = -2.0f;
+    public float snakeAnimationSpeed = 3.0f;
 
-    void OnDisable()
-    {
-        EventBus.OnTileLanded -= HandleTileLanded;
-    }
+    void Awake() { if (Instance == null) Instance = this; }
+    void OnEnable() { EventBus.OnTileLanded += HandleTileLanded; }
+    void OnDisable() { EventBus.OnTileLanded -= HandleTileLanded; }
 
     private void HandleTileLanded(PlayerState player, Tiles tile)
     {
-        // Start coroutine to resolve tile effects
         StartCoroutine(ResolveTileRoutine(player, tile));
     }
 
     private IEnumerator ResolveTileRoutine(PlayerState player, Tiles tile)
     {
-        if (player == null)
-        {
-            Debug.LogWarning("[TileEffectSystem] ResolveTile: player null");
-            yield break;
-        }
-
-        // If tile is null (shouldn't normally happen), notify immediate complete.
-        if (tile == null)
+        if (player == null || tile == null)
         {
             TurnManager.Instance?.NotifyTileResolveComplete(player);
             yield break;
         }
 
-        // Small UI-friendly delay so movement settle visuals complete first
-        yield return new WaitForSeconds(0.15f);
+        yield return new WaitForSeconds(0.2f);
+        Debug.Log($"[TileEffect] Player di Tile {tile.tileID} ({tile.type})");
 
-        // Debug
-        Debug.Log($"[TileEffectSystem] {player.gameObject.name} landed on Tile {tile.tileID} ({tile.type})");
-
-        // Check for immunity to all negative turns first (some tiles are negative)
-        bool isNegativeTile = IsNegaTile(tile);
-        if (isNegativeTile && player.immuneStacks > 0)
+        // --- 1. TANGGA ---
+        if (tile.type == TileType.LadderStart)
         {
-            // If immune, skip negative tile effects (but still consider damage tile? GDD says immunity prevents negative)
-            Debug.Log($"[TileEffectSystem] {player.gameObject.name} is immune to negative tiles.");
+            if (tile.targetTile != null)
+            {
+                yield return StartCoroutine(AnimateLadderSequence(player, tile, tile.targetTile));
+                player.TileID = tile.targetTile.tileID;
+                // Logic hadiah tangga dimatikan sementara
+            }
             TurnManager.Instance?.NotifyTileResolveComplete(player);
             yield break;
         }
 
-        // Resolve by tile type / properties
-        // Priority:
-        //  - SnakeStart / LadderStart (teleport chain handled by MovementSystem + subsequent TileLanded events)
-        //  - BlessingCard (Card tile)
-        //  - AttackTile (detected via NewTileProperties or tag)
-        //  - NegaTile (Damage 1-3 + child effect)
-        //  - Boss tile (basic hooks)
-        //  - Default: no effect
-
-        // Try get NewTileProperties if present for explicit data
-        NewTileProperties props = tile.GetComponent<NewTileProperties>();
-
-        // 1) Ladder
-        if (tile.type == TileType.LadderStart && tile.targetTile != null)
+        // --- 2. ULAR ---
+        if (tile.type == TileType.SnakeStart)
         {
-            // Ladder behavior:
-            // - Play ladder anim via MovementSystem (we just request move to target)
-            // - After landing on target, TileLanded will be called again by TurnManager/MovementSystem chain
-            // - Ladder special: give player choice of card category (movement or buff) then grant 1 random from that category
-            Debug.Log($"[TileEffectSystem] Ladder triggered: teleport {tile.tileID} -> {tile.targetTile.tileID}");
-
-            // Optionally give choice + card via CardSystem if exists
-            // For now: call CardSystem to give 1 random from chosen category after teleport landing (CardSystem should implement choice UI)
-            // We'll assume CardSystem exposes GiveLadderReward(player, allowChoiceCategories)
-            if (MovementSystem.Instance != null)
+            if (tile.targetTile != null)
             {
-                MovementSystem.Instance.RequestMove(player, tile.targetTile.tileID);
-                // Do NOT call NotifyTileResolveComplete here — wait for new TileLanded when teleport finishes
-                yield break;
-            }
-            else
-            {
-                Debug.LogWarning("[TileEffectSystem] MovementSystem missing; cannot teleport for ladder. Resolving as no-op.");
-                TurnManager.Instance?.NotifyTileResolveComplete(player);
-                yield break;
-            }
-        }
-
-        // 2) Snake
-        if (tile.type == TileType.SnakeStart && tile.targetTile != null)
-        {
-            // If player has snake immunity uses, consume
-            if (player.immuneToSnakeUses > 0)
-            {
-                player.immuneToSnakeUses--;
-                Debug.Log($"[TileEffectSystem] {player.gameObject.name} immune to snake (remaining uses {player.immuneToSnakeUses})");
-                TurnManager.Instance?.NotifyTileResolveComplete(player);
-                yield break;
-            }
-
-            Debug.Log($"[TileEffectSystem] Snake triggered: {tile.tileID} -> {tile.targetTile.tileID}");
-            if (MovementSystem.Instance != null)
-            {
-                MovementSystem.Instance.RequestMove(player, tile.targetTile.tileID);
-                // Do not NotifyTileResolveComplete now; wait for chain
-                yield break;
-            }
-            else
-            {
-                Debug.LogWarning("[TileEffectSystem] MovementSystem missing; cannot teleport for snake. Resolving as no-op.");
-                TurnManager.Instance?.NotifyTileResolveComplete(player);
-                yield break;
-            }
-        }
-
-        // 3) BlessingCard (Card Tile)
-        if (tile.type == TileType.BlessingCard)
-        {
-            Debug.Log($"[TileEffectSystem] Blessing Tile triggered!");
-
-            if (NewCardManager.Instance != null && BlessingUIManager.Instance != null)
-            {
-                // Ambil 3 Kartu sesuai request:
-                // Slot 1: Movement
-                NewCardData card1 = NewCardManager.Instance.GetRandomCardByCategory(CardCategory.Movement);
-                // Slot 2: Buff
-                NewCardData card2 = NewCardManager.Instance.GetRandomCardByCategory(CardCategory.Buff);
-                // Slot 3: Double
-                NewCardData card3 = NewCardManager.Instance.GetRandomCardByCategory(CardCategory.Utility);
-
-                // Tampilkan UI dan TUNGGU player memilih
-                // Kita tidak panggil NotifyTileResolveComplete di sini, tapi di callback
-                BlessingUIManager.Instance.ShowBlessingChoice(player, card1, card2, card3, () =>
+                if (player.immuneToSnakeUses > 0)
                 {
-                    // Ini dipanggil SETELAH player memilih kartu & UI tertutup
-                    TurnManager.Instance?.NotifyTileResolveComplete(player);
-                });
-
-                yield break; // Stop coroutine di sini, biarkan UI yang melanjutkannya
-            }
-            else
-            {
-                Debug.LogWarning("Manager UI Blessing hilang!");
-                TurnManager.Instance?.NotifyTileResolveComplete(player);
-                yield break;
-            }
-        }
-
-        // --- FITUR 2: MYSTERY TILE (DAPAT 1 RANDOM) ---
-        if (tile.type == TileType.MysteryCard)
-        {
-            Debug.Log($"[TileEffectSystem] Mystery Tile triggered!");
-
-            if (NewCardManager.Instance != null)
-            {
-                // Ambil 1 kartu random bebas kategori
-                NewCardData randomCard = NewCardManager.Instance.GetRandomCardAny();
-
-                if (randomCard != null)
-                {
-                    player.TryAddCard(randomCard);
-                    Debug.Log($"Player got free card: {randomCard.cardName}");
+                    player.immuneToSnakeUses--;
+                    Debug.Log("Player kebal ular!");
                 }
-            }
-
-            // Langsung selesai karena tidak butuh input player
-            TurnManager.Instance?.NotifyTileResolveComplete(player);
-            yield break;
-        }
-
-        // 4) Attack tile: check explicit props or fallback to rowDamage
-        if (IsAttackTile(tile, props))
-        {
-            int damage = 0;
-            if (props != null && props.overrideDamage > 0)
-            {
-                damage = props.overrideDamage;
-            }
-            else
-            {
-                // use row-based damage via BoardManager
-                BoardManager bm = BoardManager.Instance != null ? BoardManager.Instance : FindObjectOfType<BoardManager>();
-                int row = (bm != null) ? bm.GetRow(tile.tileID) : ((tile.tileID - 1) / 10) + 1;
-                if (!rowDamage.TryGetValue(row, out damage))
-                    damage = 1;
-            }
-
-            Debug.Log($"[TileEffectSystem] Attack tile: applying {damage} damage to {player.gameObject.name}");
-            if (CombatSystem.Instance != null)
-                CombatSystem.Instance.ApplyDamageToPlayer(player, damage, $"AttackTile (row {(BoardManager.Instance != null ? BoardManager.Instance.GetRow(tile.tileID) : ((tile.tileID - 1) / 10 + 1))})");
-            else
-                player.ApplyDamage(damage, "AttackTile");
-
-            TurnManager.Instance?.NotifyTileResolveComplete(player);
-            yield break;
-        }
-
-        // 5) Nega/Debuff Tile
-        if (IsNegaTile(tile))
-        {
-            // Primary effect: Damage to player (1..3)
-            int primaryDamage = UnityEngine.Random.Range(1, 4); // 1..3 inclusive
-            Debug.Log($"[TileEffectSystem] Nega tile: primary damage {primaryDamage} to {player.gameObject.name}");
-            if (CombatSystem.Instance != null)
-                CombatSystem.Instance.ApplyDamageToPlayer(player, primaryDamage, "NegaTile");
-            else
-                player.ApplyDamage(primaryDamage, "NegaTile");
-
-            // Then pick ONE child effect (disarm / +2 dice / -2 dice)
-            int choice = UnityEngine.Random.Range(0, 3);
-            switch (choice)
-            {
-                case 0: // Disarm: discard 2 random cards
-                    var removed = player.DiscardRandom(2);
-                    Debug.Log($"[TileEffectSystem] Nega->Disarm removed {removed.Count} cards from {player.gameObject.name}");
-                    break;
-                case 1: // +2 final dice (applies to next roll)
-                    player.nextRollModifier += 2;
-                    Debug.Log($"[TileEffectSystem] Nega->Dice+2 applied to {player.gameObject.name}");
-                    break;
-                case 2: // -2 final dice
-                    player.nextRollModifier -= 2;
-                    Debug.Log($"[TileEffectSystem] Nega->Dice-2 applied to {player.gameObject.name}");
-                    break;
-            }
-
-            TurnManager.Instance?.NotifyTileResolveComplete(player);
-            yield break;
-        }
-
-        // 6) Boss tile detection (via props or tag)
-        if (IsBossTile(tile, props))
-        {
-            Debug.Log($"[TileEffectSystem] Boss tile landed by {player.gameObject.name}. (Hook for boss actions)");
-            // Basic handling: if props define bossDamage apply it
-            if (props != null && props.overrideDamage > 0)
-            {
-                if (CombatSystem.Instance != null)
-                    CombatSystem.Instance.ApplyDamageToPlayer(player, props.overrideDamage, "BossTile");
                 else
-                    player.ApplyDamage(props.overrideDamage, "BossTile");
-            }
-
-            // If props indicate shuffle or advance, call BoardManager / MovementSystem accordingly
-            if (props != null && props.causeShuffleBoard)
-            {
-                BoardManager bm = BoardManager.Instance != null ? BoardManager.Instance : FindObjectOfType<BoardManager>();
-                if (bm != null) bm.ShuffleBoardPositions();
-            }
-            if (props != null && props.advancePlayerBy > 0)
-            {
-                int target = Mathf.Min((BoardManager.Instance != null ? BoardManager.Instance.totalTiles : 100), player.TileID + props.advancePlayerBy);
-                if (MovementSystem.Instance != null)
                 {
-                    MovementSystem.Instance.RequestMove(player, target);
-                    yield break; // Wait for teleport/movement to finish (turn manager will handle chain)
+                    yield return StartCoroutine(AnimateSnakeSequence(player, tile, tile.targetTile));
+                    player.TileID = tile.targetTile.tileID;
                 }
             }
+            TurnManager.Instance?.NotifyTileResolveComplete(player);
+            yield break;
+        }
+
+        // --- 3. ATTACK ---
+        if (tile.type == TileType.Attack || tile.type == TileType.AttackCracked)
+        {
+            int row = GetRow(tile.tileID);
+            int damage = Mathf.Max(2, row);
+            Debug.Log($"[Attack] Row {row} -> {damage} Damage to Boss");
+
+            if (CombatSystem.Instance != null && FindObjectOfType<BossState>() != null)
+                CombatSystem.Instance.ApplyDamageToBoss(FindObjectOfType<BossState>(), damage, "Tile Attack");
 
             TurnManager.Instance?.NotifyTileResolveComplete(player);
             yield break;
         }
 
-        // Default: nothing special
+        // --- 4. DAMAGE (Danger 01) & NEGA ---
+        if (tile.type == TileType.Damage || tile.type == TileType.DamageCracked)
+        {
+            int row = GetRow(tile.tileID);
+            int damage = (row >= 8) ? 3 : (row >= 4 ? 2 : 1);
+            Debug.Log($"[Damage/Nega] Row {row} -> {damage} Damage to Player");
+
+            if (CombatSystem.Instance != null)
+                CombatSystem.Instance.ApplyDamageToPlayer(player, damage, "Damage Tile");
+            else
+                player.ApplyDamage(damage);
+
+            TurnManager.Instance?.NotifyTileResolveComplete(player);
+            yield break;
+        }
+
+        // --- 5. DISARM (Danger 02) ---
+        if (tile.type == TileType.Disarm || tile.type == TileType.DisarmCracked)
+        {
+            Debug.Log("[Disarm Tile] Logic Disabled for Testing (Should Discard 2 Cards)");
+            // player.DiscardRandom(2); 
+            TurnManager.Instance?.NotifyTileResolveComplete(player);
+            yield break;
+        }
+
+        // --- 6. NEW CARD TILES (Fixed Error) ---
+        if (tile.type == TileType.CardRandom || tile.type == TileType.CardMovement || tile.type == TileType.CardBuff)
+        {
+            // Logic dimatikan dulu biar gak error CS1061 di NewCardManager
+            Debug.Log($"[Card Tile] Mendarat di {tile.type}. (Logic Kartu Disabled)");
+
+            /* // Nanti jika NewCardManager sudah siap, uncomment ini:
+            if (NewCardManager.Instance != null) {
+                if (tile.type == TileType.CardRandom) NewCardManager.Instance.GetRandomCardAny();
+                // dst...
+            }
+            */
+
+            TurnManager.Instance?.NotifyTileResolveComplete(player);
+            yield break;
+        }
+
+        // --- 7. DEATH & LAINNYA ---
+        if (tile.type == TileType.Death || tile.type == TileType.Despair || tile.type == TileType.Provocation)
+        {
+            Debug.Log($"[Special Tile] {tile.type} triggered (No Logic yet).");
+            TurnManager.Instance?.NotifyTileResolveComplete(player);
+            yield break;
+        }
+
+        // NORMAL / FALLBACK
         TurnManager.Instance?.NotifyTileResolveComplete(player);
-        yield break;
     }
 
-    #region Helpers & detection
-    private bool IsAttackTile(Tiles tile, NewTileProperties props)
+    // --- ANIMATIONS ---
+    private IEnumerator AnimateLadderSequence(PlayerState player, Tiles startTile, Tiles endTile)
     {
-        if (props != null && props.forceAsAttack) return true;
-        // fallback: check tag or name
-        if (tile.gameObject.CompareTag("AttackTile")) return true;
-        if (tile.gameObject.name.ToLower().Contains("attack")) return true;
-        // If tile type is Normal but has metadata, use that
-        return false;
+        if (ladderStepPrefab == null)
+        {
+            player.transform.position = endTile.GetPlayerPosition();
+            yield break;
+        }
+
+        List<GameObject> deployedSteps = new List<GameObject>();
+        Vector3 startPos = startTile.GetPlayerPosition() + Vector3.up * ladderVerticalOffset;
+        Vector3 endPos = endTile.GetPlayerPosition() + Vector3.up * ladderVerticalOffset;
+        float dist = Vector3.Distance(startPos, endPos);
+        Quaternion rot = Quaternion.LookRotation((endPos - startPos).normalized);
+        int steps = Mathf.Max(1, Mathf.RoundToInt(dist));
+
+        for (int i = 0; i <= steps; i++)
+        {
+            Vector3 finalPos = Vector3.Lerp(startPos, endPos, (float)i / steps);
+            Vector3 spawnPos = finalPos + Vector3.up * ladderDeployHeight;
+            GameObject step = Instantiate(ladderStepPrefab, spawnPos, rot);
+            deployedSteps.Add(step);
+            float t = 0;
+            while (t < 1f) { t += Time.deltaTime * ladderDeploySpeed; step.transform.position = Vector3.Lerp(spawnPos, finalPos, t); yield return null; }
+            step.transform.position = finalPos;
+            yield return new WaitForSeconds(ladderStepDelay);
+        }
+        yield return new WaitForSeconds(0.2f);
+        player.transform.position = endTile.GetPlayerPosition();
+        if (player.pawn != null) player.pawn.transform.position = endTile.GetPlayerPosition();
+        yield return new WaitForSeconds(0.5f);
+        foreach (var s in deployedSteps) Destroy(s);
     }
 
-    private bool IsNegaTile(Tiles tile)
+    private IEnumerator AnimateSnakeSequence(PlayerState player, Tiles startTile, Tiles endTile)
     {
-        // We define NegaTile via tag or name, or via NewTileProperties
-        NewTileProperties props = tile.GetComponent<NewTileProperties>();
-        if (props != null && props.isNegaTile) return true;
-        if (tile.gameObject.CompareTag("NegaTile")) return true;
-        if (tile.gameObject.name.ToLower().Contains("nega") || tile.gameObject.name.ToLower().Contains("debuff")) return true;
-        return false;
+        Vector3 sPos = startTile.transform.position, ePos = endTile.transform.position, pPos = player.transform.position;
+        Vector3 off = new Vector3(0, snakeAnimationHeight, 0);
+        if (snakeParticle) Destroy(Instantiate(snakeParticle, pPos, Quaternion.identity), 2f);
+
+        float t = 0;
+        while (t < 1f)
+        {
+            t += Time.deltaTime * snakeAnimationSpeed;
+            startTile.transform.position = Vector3.Lerp(sPos, sPos + off, t);
+            endTile.transform.position = Vector3.Lerp(ePos, ePos + off, t);
+            player.transform.position = Vector3.Lerp(pPos, pPos + off, t);
+            yield return null;
+        }
+        player.transform.position = endTile.GetPlayerPosition() + off;
+        yield return new WaitForSeconds(0.5f);
+        t = 0;
+        while (t < 1f)
+        {
+            t += Time.deltaTime * snakeAnimationSpeed;
+            startTile.transform.position = Vector3.Lerp(sPos + off, sPos, t);
+            endTile.transform.position = Vector3.Lerp(ePos + off, ePos, t);
+            player.transform.position = Vector3.Lerp(player.transform.position, endTile.GetPlayerPosition(), t);
+            yield return null;
+        }
+        startTile.transform.position = sPos; endTile.transform.position = ePos;
+        player.transform.position = endTile.GetPlayerPosition();
     }
 
-    private bool IsBossTile(Tiles tile, NewTileProperties props)
-    {
-        if (props != null && props.isBossTile) return true;
-        if (tile.gameObject.CompareTag("BossTile")) return true;
-        if (tile.gameObject.name.ToLower().Contains("boss")) return true;
-        return false;
-    }
-    #endregion
-}
-
-/// <summary>
-/// Optional helper component you can attach to Tile GameObjects to specify metadata without changing Tiles.cs.
-/// Put this on any Tile to override behaviors (attack damage, boss flags, nega flags, etc).
-/// This is optional — TileEffectSystem will fallback to tag / name / Tiles.type.
-/// </summary>
-[DisallowMultipleComponent]
-public class NewTileProperties : MonoBehaviour
-{
-    [Header("Force tile categories")]
-    public bool forceAsAttack = false;
-    public bool isNegaTile = false;
-    public bool isBossTile = false;
-
-    [Header("Optional damage override")]
-    public int overrideDamage = 0;
-
-    [Header("Boss special")]
-    public bool causeShuffleBoard = false;
-    public int advancePlayerBy = 0;
+    private int GetRow(int tileID) => tileID <= 0 ? 1 : ((tileID - 1) / 10) + 1;
 }
