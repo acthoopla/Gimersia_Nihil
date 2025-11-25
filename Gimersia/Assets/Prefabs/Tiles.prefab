@@ -11,9 +11,8 @@ GameObject:
   - component: {fileID: 3747114297527766946}
   - component: {fileID: 404588560165370419}
   - component: {fileID: 1731637340603181310}
-  - component: {fileID: 8623217676939847442}
   m_Layer: 0
-  m_Name: Tiles
+  m_Name: Tile_0_Normal
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
@@ -82,33 +81,25 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   tileID: 0
   type: 0
-  tileNumberText: {fileID: 5860929292229797379}
   targetTile: {fileID: 0}
+  playerStandPoint: {fileID: 0}
+  tileNumberText: {fileID: 5860929292229797379}
   pathContainer: {fileID: 0}
   normalModel: {fileID: 353101790860569556}
   snakeStartModel: {fileID: 4753400786415293348}
   ladderStartModel: {fileID: 890821727590189772}
   snakeEndModel: {fileID: 0}
   ladderEndModel: {fileID: 0}
+  blessingCardModel: {fileID: 0}
+  attackModel: {fileID: 0}
+  bossModel: {fileID: 0}
+  negaModel: {fileID: 0}
   snakePathStraightModel: {fileID: 0}
   snakePathBendModel1: {fileID: 0}
   snakePathBendModel2: {fileID: 0}
-  blessingCardModel: {fileID: 0}
   lastKnownTarget: {fileID: 0}
   lastKnownType: 0
   lastKnownTileID: -1
---- !u!114 &8623217676939847442
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 294143723951711165}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 4b958df28b7ac8b4896ca7e4dc79f4f1, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: 
 --- !u!1 &2430956263668198064
 GameObject:
   m_ObjectHideFlags: 0

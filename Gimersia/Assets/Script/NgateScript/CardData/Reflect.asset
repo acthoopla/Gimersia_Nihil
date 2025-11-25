@@ -1,0 +1,21 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 6c8037a56f311be4695b3c415ca6cdb8, type: 3}
+  m_Name: Reflect
+  m_EditorClassIdentifier: 
+  cardName: 'Reflect '
+  description: Membalikan Serangan Sebanyak 5 kali lipat dari damage yang diterima
+  cardIcon: {fileID: 0}
+  cardPrefab: {fileID: 6135567647622964347, guid: 4b65a4b4789572941b8281a03d92a92e, type: 3}
+  category: 3
+  effects:
+  - {fileID: 11400000, guid: c0f3a7d35f03d124d96c801932528acc, type: 2}
