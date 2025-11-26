@@ -2,17 +2,6 @@ using System;
 using System.Collections.Generic;
 using UnityEngine;
 
-/// <summary>
-/// PlayerState: menyimpan state gameplay seorang pemain.
-/// - SRP: hanya menyimpan data & helper operation (take damage, add/remove card, flags)
-/// - Tidak melakukan movement, UI, atau turn logic.
-/// 
-/// Tambahan: menyediakan backward-compatible aliases:
-/// - pawn (public field)
-/// - heldCards (property yang membungkus hand)
-/// - HasDoubleEdge (property untuk efek double edge)
-/// 
-/// </summary>
 [DisallowMultipleComponent]
 public class PlayerState : MonoBehaviour
 {
@@ -24,19 +13,16 @@ public class PlayerState : MonoBehaviour
     public int maxHandSize = 6;
     public List<NewCardData> hand = new List<NewCardData>();
 
-    // Slot untuk visual selection (Max 3)
     public int maxSlots = 3;
     public List<NewCardData> selectedCards = new List<NewCardData>();
 
-    [Header("Execution Queue")]
-    // Antrean kartu yang menunggu tombol GO
     public List<NewCardData> pendingQueue = new List<NewCardData>();
 
     [Header("Status")]
     public int TileID = 1;
     public int immuneToAllNegativeTurns = 0;
-    public int immuneToSnakeUses = 0;
     public int immuneStacks = 0;
+    public int immuneToSnakeUses = 0;
     public int reflectMultiplier = 0;
     public bool hasDoubleEdge = false;
     public int defenseFromCards = 0;
@@ -49,10 +35,83 @@ public class PlayerState : MonoBehaviour
     public bool IsHandFull => hand.Count >= maxHandSize;
     public bool HasDoubleEdge { get => hasDoubleEdge; set => hasDoubleEdge = value; }
 
-    void Awake() { currentHP = maxHP; }
+    // Alias backward compatibility
+    public List<NewCardData> heldCards { get => hand; set => hand = value ?? new List<NewCardData>(); }
+
+    void Awake()
+    {
+        currentHP = maxHP;
+    }
+
     public void NotifyStateChanged() => OnStateChanged?.Invoke(this);
 
-    // --- 1. LOGIC HAND (ADD / REMOVE) ---
+    // --- DAMAGE & LOSE CONDITION ---
+
+    public void ApplyDamage(int rawDamage, string source = null)
+    {
+        if (currentHP <= 0) return;
+
+        // 1. Cek Immune Global
+        if (immuneToAllNegativeTurns > 0) return;
+
+        // 2. Cek Immune Stacks
+        if (immuneStacks > 0)
+        {
+            immuneStacks--;
+            Debug.Log($"[Player] Damage {rawDamage} ditahan oleh Immune Stack!");
+            NotifyStateChanged();
+            return;
+        }
+
+        // 3. Cek Reflect
+        if (reflectMultiplier > 0)
+        {
+            Debug.Log($"[Player] Reflect {reflectMultiplier}x active!");
+            if (UIController.Instance != null && UIController.Instance.bossState != null)
+            {
+                UIController.Instance.bossState.TakeDamage(rawDamage * reflectMultiplier);
+            }
+            reflectMultiplier = 0;
+            NotifyStateChanged();
+            return;
+        }
+
+        // 4. Kalkulasi Damage
+        int dmg = Mathf.Max(0, rawDamage - defenseFromCards);
+        if (HasDoubleEdge) dmg *= 2;
+
+        currentHP = Mathf.Max(0, currentHP - dmg);
+        NotifyStateChanged();
+
+        // 5. CEK KEMATIAN (LOSE CONDITION)
+        if (currentHP <= 0)
+        {
+            Debug.Log(">>> GAME OVER: Player HP Habis! <<<");
+
+            if (UIController.Instance != null)
+                UIController.Instance.ShowGameOver();
+
+            if (TurnManager.Instance != null)
+                TurnManager.Instance.state = TurnManager.TurnState.GameOver;
+        }
+    }
+
+    public void Heal(int amount)
+    {
+        if (currentHP <= 0) return;
+        currentHP = Mathf.Min(maxHP, currentHP + amount);
+        NotifyStateChanged();
+    }
+
+    // --- HAND MANAGEMENT (YANG HILANG TADI) ---
+
+    // [FIX ERROR] Method ini saya kembalikan
+    public bool DiscardCard(NewCardData card)
+    {
+        bool removed = hand.Remove(card);
+        if (removed) NotifyStateChanged();
+        return removed;
+    }
 
     public bool TryAddCard(NewCardData card)
     {
@@ -62,58 +121,50 @@ public class PlayerState : MonoBehaviour
         return true;
     }
 
-    // FUNGSI INI YANG HILANG SEBELUMNYA (FIX ERROR)
-    public bool DiscardCard(NewCardData card)
-    {
-        bool removed = hand.Remove(card);
-        if (removed) NotifyStateChanged();
-        return removed;
-    }
-
-    public List<NewCardData> DiscardRandom(int count)
-    {
-        List<NewCardData> removed = new List<NewCardData>();
-        if (count <= 0 || hand.Count == 0) return removed;
-
-        System.Random rng = new System.Random();
-        count = Mathf.Min(count, hand.Count);
-
-        for (int i = 0; i < count; i++)
-        {
-            int idx = rng.Next(0, hand.Count);
-            NewCardData c = hand[idx];
-            hand.RemoveAt(idx);
-            removed.Add(c);
-        }
-        NotifyStateChanged();
-        return removed;
-    }
-
     public void ClearHand()
     {
         hand.Clear();
         NotifyStateChanged();
     }
 
-    // --- 2. LOGIC PENDING QUEUE ---
-
-    public void AddToPending(NewCardData card)
+    public List<NewCardData> DiscardRandom(int count)
     {
-        pendingQueue.Add(card);
+        List<NewCardData> removed = new List<NewCardData>();
+        if (hand.Count == 0) return removed;
+        count = Mathf.Min(count, hand.Count);
+        for (int i = 0; i < count; i++)
+        {
+            int idx = UnityEngine.Random.Range(0, hand.Count);
+            removed.Add(hand[idx]); hand.RemoveAt(idx);
+        }
+        NotifyStateChanged();
+        return removed;
     }
+
+    // --- SLOT & PENDING LOGIC ---
+
+    public void ConfirmLoadout()
+    {
+        if (selectedCards.Count > 0)
+        {
+            pendingQueue.AddRange(selectedCards);
+            selectedCards.Clear();
+            NotifyStateChanged();
+        }
+    }
+
+    public void AddToPending(NewCardData card) => pendingQueue.Add(card);
 
     public List<NewCardData> GetAndClearPending()
     {
-        List<NewCardData> toExecute = new List<NewCardData>(pendingQueue);
+        var list = new List<NewCardData>(pendingQueue);
         pendingQueue.Clear();
-        return toExecute;
+        return list;
     }
-
-    // --- 3. LOGIC SLOT ---
 
     public bool SelectCardToSlot(NewCardData card)
     {
-        if (card == null || selectedCards.Count >= maxSlots || !hand.Contains(card)) return false;
+        if (!hand.Contains(card) || selectedCards.Count >= maxSlots) return false;
         hand.Remove(card);
         selectedCards.Add(card);
         NotifyStateChanged();
@@ -122,7 +173,7 @@ public class PlayerState : MonoBehaviour
 
     public bool ReturnCardToHand(NewCardData card)
     {
-        if (card == null || !selectedCards.Contains(card) || IsHandFull) return false;
+        if (!selectedCards.Contains(card) || IsHandFull) return false;
         selectedCards.Remove(card);
         hand.Add(card);
         NotifyStateChanged();
@@ -138,37 +189,7 @@ public class PlayerState : MonoBehaviour
         }
     }
 
-    // --- 4. CORE GAMEPLAY ---
-
-    public void ApplyDamage(int rawDamage, string source = null)
-    {
-        if (immuneToAllNegativeTurns > 0) { return; }
-
-        if (immuneStacks > 0)
-        {
-            immuneStacks--;
-            NotifyStateChanged();
-            return;
-        }
-
-        if (reflectMultiplier > 0)
-        {
-            Debug.Log($"Reflect {reflectMultiplier}x activated!");
-            return;
-        }
-
-        int dmg = Mathf.Max(0, rawDamage - defenseFromCards);
-        if (HasDoubleEdge) dmg *= 2;
-
-        currentHP = Mathf.Max(0, currentHP - dmg);
-        NotifyStateChanged();
-    }
-
-    public void Heal(int amount)
-    {
-        currentHP = Mathf.Min(maxHP, currentHP + amount);
-        NotifyStateChanged();
-    }
+    // --- STATUS HELPERS ---
 
     public void ResetTemporaryStatus()
     {
@@ -176,26 +197,13 @@ public class PlayerState : MonoBehaviour
         immuneToAllNegativeTurns = 0;
         immuneStacks = 0;
         reflectMultiplier = 0;
-        nextRollModifier = 0;
+        // nextRollModifier TIDAK direset disini agar efek tile persist
+        // nextRollModifier = 0;  <-- Jangan di-uncomment
         hasDoubleEdge = false;
         NotifyStateChanged();
     }
 
-    public void SetHP(int hp)
-    {
-        currentHP = hp;
-        NotifyStateChanged();
-    }
-
-    public void AddImmunityStack(int amt)
-    {
-        immuneStacks += amt;
-        NotifyStateChanged();
-    }
-
-    public void SetReflect(int mult)
-    {
-        reflectMultiplier = mult;
-        NotifyStateChanged();
-    }
+    public void SetHP(int hp) { currentHP = hp; NotifyStateChanged(); }
+    public void AddImmunityStack(int amt) { immuneStacks += amt; NotifyStateChanged(); }
+    public void SetReflect(int mult) { reflectMultiplier = mult; NotifyStateChanged(); }
 }

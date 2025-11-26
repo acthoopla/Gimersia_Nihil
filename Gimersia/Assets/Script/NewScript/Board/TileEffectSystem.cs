@@ -9,7 +9,19 @@ public class TileEffectSystem : MonoBehaviour
 {
     public static TileEffectSystem Instance { get; private set; }
 
-    // Mapping damage per baris (Row 1-10)
+    [Header("Animation Settings")]
+    public GameObject ladderStepPrefab;
+    public float ladderDeployHeight = 10f;
+    public float ladderDeploySpeed = 15f;
+    public float ladderStepDelay = 0.05f;
+    public float ladderVerticalOffset = 0.1f;
+    public float ladderClimbDuration = 1.5f;
+
+    public GameObject snakeParticle;
+    public float snakeAnimationHeight = -2.0f;
+    public float snakeAnimationSpeed = 3.0f;
+
+    // Mapping damage per baris
     private readonly Dictionary<int, int> rowDamage = new Dictionary<int, int>()
     {
         {1, 1}, {2, 2}, {3, 2}, {4, 3}, {5, 4}, {6, 5}, {7, 6}, {8, 8}, {9, 9}, {10, 10}
@@ -21,8 +33,39 @@ public class TileEffectSystem : MonoBehaviour
         else Destroy(gameObject);
     }
 
-    void OnEnable() { EventBus.OnTileLanded += HandleTileLanded; }
-    void OnDisable() { EventBus.OnTileLanded -= HandleTileLanded; }
+    void OnEnable()
+    {
+        EventBus.OnTileLanded += HandleTileLanded;
+        EventBus.OnTurnStarted += HandleTurnStarted;
+    }
+
+    void OnDisable()
+    {
+        EventBus.OnTileLanded -= HandleTileLanded;
+        EventBus.OnTurnStarted -= HandleTurnStarted;
+    }
+
+    // --- LOGIKA AWAL GILIRAN (Provocation & Despair) ---
+    // Ini memodifikasi dadu SEBELUM dikocok
+    private void HandleTurnStarted(PlayerState player)
+    {
+        if (BoardManager.Instance == null) return;
+        Tiles currentTile = BoardManager.Instance.GetTileByID(player.TileID);
+
+        if (currentTile != null)
+        {
+            if (currentTile.type == TileType.Provocation)
+            {
+                Debug.Log($"[TileEffect] Start Bonus! Player di Provocation. Next Roll +2.");
+                player.nextRollModifier += 2;
+            }
+            else if (currentTile.type == TileType.Despair)
+            {
+                Debug.Log($"[TileEffect] Start Penalty! Player di Despair. Next Roll -2.");
+                player.nextRollModifier -= 2;
+            }
+        }
+    }
 
     private void HandleTileLanded(PlayerState player, Tiles tile)
     {
@@ -31,162 +74,141 @@ public class TileEffectSystem : MonoBehaviour
 
     private IEnumerator ResolveTileRoutine(PlayerState player, Tiles tile)
     {
-        // 1. Validasi Data
         if (player == null || tile == null)
         {
             TurnManager.Instance?.NotifyTileResolveComplete(player);
             yield break;
         }
 
-        yield return new WaitForSeconds(0.15f);
-        Debug.Log($"[TileEffect] {player.gameObject.name} landed on Tile {tile.tileID} ({tile.type})");
+        yield return new WaitForSeconds(0.2f);
+        Debug.Log($"[TileEffect] Landed on {tile.tileID} ({tile.type})");
 
-        // 2. Cek Immunity (Khusus Tile Negatif)
-        bool isNegative = IsNegaTile(tile);
-        if (isNegative && player.immuneToAllNegativeTurns > 0)
+        // 1. Cek Immunity (Semua Tile Jahat)
+        if (IsNegaTile(tile) && player.immuneToAllNegativeTurns > 0)
         {
-            Debug.Log($"[TileEffect] Player immune to negative tile.");
+            Debug.Log($"[TileEffect] Player immune.");
             TurnManager.Instance?.NotifyTileResolveComplete(player);
             yield break;
         }
 
-        NewTileProperties props = tile.GetComponent<NewTileProperties>();
-
         // =========================================================
-        // LOGIC 1: TANGGA (LADDER) -> TELEPORT -> PILIH HADIAH
+        // LOGIC 1: TANGGA
         // =========================================================
         if (tile.type == TileType.LadderStart && tile.targetTile != null)
         {
-            Debug.Log($"[Ladder] Teleporting to Tile {tile.targetTile.tileID}...");
+            yield return StartCoroutine(AnimateLadderSequence(player, tile, tile.targetTile));
+            player.TileID = tile.targetTile.tileID;
 
-            // A. Teleport Animation
-            if (MovementSystem.Instance != null)
-            {
-                MovementSystem.Instance.RequestMove(player, tile.targetTile.tileID);
-                yield return new WaitForSeconds(1.0f);
-                while (player.pawn != null && player.pawn.IsMoving) yield return null;
-            }
-
-            // B. Munculkan UI Pilihan (Movement vs Buff)
+            // Reward Card Choice
             if (BlessingUIManager.Instance != null && NewCardManager.Instance != null)
             {
-                Debug.Log("[Ladder] Waiting for reward choice (Move/Buff)...");
                 bool choiceMade = false;
-
                 BlessingUIManager.Instance.ShowCategoryChoice((selectedCategory) =>
                 {
                     NewCardData reward = NewCardManager.Instance.GetRandomCardByCategory(selectedCategory);
-                    if (reward != null)
-                    {
-                        if (player.TryAddCard(reward))
-                            Debug.Log($"[Reward] Ladder Reward: {reward.cardName} ({selectedCategory})");
-                        else
-                            Debug.LogWarning("[Reward] Hand Full!");
-                    }
+                    if (reward != null) player.TryAddCard(reward);
                     choiceMade = true;
                 });
-
                 while (!choiceMade) yield return null;
             }
-            TurnManager.Instance?.NotifyTileResolveComplete(player);
-            yield break;
-        }
-
-        // =========================================================
-        // LOGIC 2: KARTU INSTAN (Card Tiles)
-        // =========================================================
-
-        NewCardData instantCard = null;
-
-        // --- A. Tile Movement (Random Movement Card) ---
-        if (tile.type == TileType.CardMovement)
-        {
-            instantCard = NewCardManager.Instance?.GetRandomCardByCategory(CardCategory.Movement);
-        }
-        // --- B. Tile Buff (Random Buff Card) ---
-        else if (tile.type == TileType.CardBuff)
-        {
-            instantCard = NewCardManager.Instance?.GetRandomCardByCategory(CardCategory.Buff);
-        }
-        // --- C. Tile Random (Random Any Card) ---
-        else if (tile.type == TileType.CardRandom)
-        {
-            instantCard = NewCardManager.Instance?.GetRandomCardAny();
-        }
-
-        // Jika dapat kartu, berikan ke player
-        if (instantCard != null)
-        {
-            Debug.Log($"[CardTile] Tipe {tile.type} memberikan kartu: {instantCard.cardName}");
-
-            bool success = player.TryAddCard(instantCard);
-            if (!success) Debug.LogWarning("[CardTile] Gagal! Hand Player Penuh.");
-
-            // Setelah TryAddCard sukses, Script 'VisualBridge' akan otomatis memunculkan 
-            // kartu visual di tangan (placeholder).
 
             TurnManager.Instance?.NotifyTileResolveComplete(player);
             yield break;
         }
 
         // =========================================================
-        // LOGIC 3: SYSTEM LAIN (Snake, Attack, Nega)
+        // LOGIC 2: ULAR
         // =========================================================
-
-        // Snake
         if (tile.type == TileType.SnakeStart && tile.targetTile != null)
         {
             if (player.immuneToSnakeUses > 0)
             {
                 player.immuneToSnakeUses--;
             }
-            else if (MovementSystem.Instance != null)
-            {
-                MovementSystem.Instance.RequestMove(player, tile.targetTile.tileID);
-                yield break;
-            }
-        }
-
-        // Attack Tile
-        if (IsAttackTile(tile, props))
-        {
-            int damage = 0;
-            if (props != null && props.overrideDamage > 0) damage = props.overrideDamage;
             else
             {
-                int row = (BoardManager.Instance != null) ? BoardManager.Instance.GetRow(tile.tileID) : 1;
-                if (!rowDamage.TryGetValue(row, out damage)) damage = 1;
-            }
-
-            if (CombatSystem.Instance != null) CombatSystem.Instance.ApplyDamageToPlayer(player, damage, "AttackTile");
-            else player.ApplyDamage(damage, "AttackTile");
-
-            TurnManager.Instance?.NotifyTileResolveComplete(player);
-            yield break;
-        }
-
-        // Nega Tile
-        if (IsNegaTile(tile))
-        {
-            int primaryDamage = UnityEngine.Random.Range(1, 4);
-            player.ApplyDamage(primaryDamage, "NegaTile");
-
-            int choice = UnityEngine.Random.Range(0, 3);
-            switch (choice)
-            {
-                case 0: player.DiscardRandom(2); break;
-                case 1: player.nextRollModifier += 2; break;
-                case 2: player.nextRollModifier -= 2; break;
+                yield return StartCoroutine(AnimateSnakeSequence(player, tile, tile.targetTile));
+                player.TileID = tile.targetTile.tileID;
             }
             TurnManager.Instance?.NotifyTileResolveComplete(player);
             yield break;
         }
 
-        // Boss
-        if (IsBossTile(tile, props))
+        // =========================================================
+        // LOGIC 3: KARTU INSTAN
+        // =========================================================
+        NewCardData instantCard = null;
+        if (tile.type == TileType.CardMovement) instantCard = NewCardManager.Instance?.GetRandomCardByCategory(CardCategory.Movement);
+        else if (tile.type == TileType.CardBuff) instantCard = NewCardManager.Instance?.GetRandomCardByCategory(CardCategory.Buff);
+        else if (tile.type == TileType.CardRandom) instantCard = NewCardManager.Instance?.GetRandomCardAny();
+
+        if (instantCard != null)
         {
-            if (props != null && props.overrideDamage > 0) player.ApplyDamage(props.overrideDamage, "BossTile");
-            if (props != null && props.causeShuffleBoard && BoardManager.Instance != null) BoardManager.Instance.ShuffleBoardPositions();
+            player.TryAddCard(instantCard);
+            TurnManager.Instance?.NotifyTileResolveComplete(player);
+            yield break;
+        }
+
+        // =========================================================
+        // LOGIC 4: ATTACK TILE (Ke Boss)
+        // =========================================================
+        if (tile.type == TileType.Attack)
+        {
+            int row = GetRow(tile.tileID);
+            int damage = 0;
+            if (!rowDamage.TryGetValue(row, out damage)) damage = Mathf.Max(2, row);
+
+            if (CombatSystem.Instance != null && FindObjectOfType<BossState>() != null)
+                CombatSystem.Instance.ApplyDamageToBoss(FindObjectOfType<BossState>(), damage, "Tile Attack");
+
+            TurnManager.Instance?.NotifyTileResolveComplete(player);
+            yield break;
+        }
+
+        // =========================================================
+        // LOGIC 5: SPECIAL NEGA TILES (PRIORITAS TINGGI)
+        // [FIX] Cek Disarm DISINI sebelum cek Damage biasa
+        // =========================================================
+
+        if (tile.type == TileType.Disarm)
+        {
+            Debug.Log("[TileEffect] DISARM! Membuang 2 kartu acak.");
+            player.DiscardRandom(2);
+
+            // Jika mau Disarm juga mengurangi HP, hapus 'yield break' di bawah ini
+            // dan biarkan code lanjut ke blok Damage.
+            TurnManager.Instance?.NotifyTileResolveComplete(player);
+            yield break;
+        }
+
+        if (tile.type == TileType.Provocation || tile.type == TileType.Despair)
+        {
+            // Efek status sudah ditangani di HandleTurnStarted (awal giliran depan).
+            // Di sini cuma log visual saja.
+            Debug.Log($"[TileEffect] Status {tile.type} aktif untuk giliran depan.");
+            TurnManager.Instance?.NotifyTileResolveComplete(player);
+            yield break;
+        }
+
+        if (tile.type == TileType.Death)
+        {
+            // Logika kematian sebenarnya sudah di TurnManager (Tile 100), 
+            // tapi kalau ada tile Death di tengah jalan:
+            player.ApplyDamage(999, "Death Tile");
+            TurnManager.Instance?.NotifyTileResolveComplete(player);
+            yield break;
+        }
+
+        // =========================================================
+        // LOGIC 6: GENERIC DAMAGE TILE (Sisa NegaTile)
+        // =========================================================
+        if (tile.type == TileType.Damage || IsNegaTile(tile))
+        {
+            int row = GetRow(tile.tileID);
+            int damage = (row >= 8) ? 3 : (row >= 4 ? 2 : 1);
+
+            if (CombatSystem.Instance != null) CombatSystem.Instance.ApplyDamageToPlayer(player, damage, "Damage Tile");
+            else player.ApplyDamage(damage);
 
             TurnManager.Instance?.NotifyTileResolveComplete(player);
             yield break;
@@ -195,50 +217,88 @@ public class TileEffectSystem : MonoBehaviour
         TurnManager.Instance?.NotifyTileResolveComplete(player);
     }
 
-    #region Helpers & Detection
-
-    private bool IsAttackTile(Tiles tile, NewTileProperties props)
-    {
-        if (tile.type == TileType.Attack || tile.type == TileType.AttackCracked) return true;
-        if (props != null && props.forceAsAttack) return true;
-        return false;
-    }
+    // --- ANIMATIONS & HELPERS (Tetap Sama) ---
 
     private bool IsNegaTile(Tiles tile)
     {
-        if (tile.type == TileType.Damage || tile.type == TileType.DamageCracked ||
-            tile.type == TileType.Disarm || tile.type == TileType.DisarmCracked ||
-            tile.type == TileType.Provocation || tile.type == TileType.ProvocationCracked ||
-            tile.type == TileType.Despair || tile.type == TileType.DespairCracked) return true;
-
-        NewTileProperties props = tile.GetComponent<NewTileProperties>();
-        if (props != null && props.isNegaTile) return true;
-        return false;
+        return tile.type == TileType.Damage ||
+               tile.type == TileType.Disarm ||
+               tile.type == TileType.Provocation ||
+               tile.type == TileType.Despair;
     }
 
-    private bool IsBossTile(Tiles tile, NewTileProperties props)
+    private int GetRow(int tileID) => tileID <= 0 ? 1 : ((tileID - 1) / 10) + 1;
+
+    private IEnumerator AnimateLadderSequence(PlayerState player, Tiles startTile, Tiles endTile)
     {
-        if (tile.type == TileType.Death) return true;
-        if (props != null && props.isBossTile) return true;
-        if (tile.gameObject.CompareTag("BossTile")) return true;
-        return false;
+        if (ladderStepPrefab == null) { player.transform.position = endTile.GetPlayerPosition(); yield break; }
+        // ... (Kode animasi tangga sama persis seperti sebelumnya) ...
+        // Agar hemat tempat saya persingkat, tapi pastikan blok animasi ini ada
+        // Kalau hilang, copy dari jawaban sebelumnya.
+
+        List<GameObject> deployedSteps = new List<GameObject>();
+        Vector3 startPos = startTile.GetPlayerPosition() + Vector3.up * ladderVerticalOffset;
+        Vector3 endPos = endTile.GetPlayerPosition() + Vector3.up * ladderVerticalOffset;
+        float dist = Vector3.Distance(startPos, endPos);
+        Quaternion rot = Quaternion.LookRotation((endPos - startPos).normalized);
+        int steps = Mathf.Max(1, Mathf.RoundToInt(dist));
+
+        for (int i = 0; i <= steps; i++)
+        {
+            Vector3 finalPos = Vector3.Lerp(startPos, endPos, (float)i / steps);
+            Vector3 spawnPos = finalPos + Vector3.up * ladderDeployHeight;
+            GameObject step = Instantiate(ladderStepPrefab, spawnPos, rot);
+            deployedSteps.Add(step);
+            float t = 0;
+            while (t < 1f) { t += Time.deltaTime * ladderDeploySpeed; step.transform.position = Vector3.Lerp(spawnPos, finalPos, t); yield return null; }
+            step.transform.position = finalPos;
+            yield return new WaitForSeconds(ladderStepDelay);
+        }
+
+        Vector3 startClimb = player.transform.position; Vector3 endClimb = endTile.GetPlayerPosition();
+        float climbTimer = 0f;
+        player.transform.LookAt(new Vector3(endClimb.x, player.transform.position.y, endClimb.z));
+
+        while (climbTimer < 1f)
+        {
+            climbTimer += Time.deltaTime / ladderClimbDuration;
+            player.transform.position = Vector3.Lerp(startClimb, endClimb, climbTimer);
+            if (player.pawn != null) player.pawn.transform.position = player.transform.position;
+            yield return null;
+        }
+        player.transform.position = endClimb;
+        if (player.pawn != null) player.pawn.transform.position = endClimb;
+        foreach (var s in deployedSteps) Destroy(s);
     }
-    #endregion
-}
 
-// --- SCRIPT TAMBAHAN UNTUK MENGHILANGKAN ERROR CS0246 ---
-[DisallowMultipleComponent]
-public class NewTileProperties : MonoBehaviour
-{
-    [Header("Force tile categories")]
-    public bool forceAsAttack = false;
-    public bool isNegaTile = false;
-    public bool isBossTile = false;
+    private IEnumerator AnimateSnakeSequence(PlayerState player, Tiles startTile, Tiles endTile)
+    {
+        // ... (Kode animasi ular sama persis seperti sebelumnya) ...
+        Vector3 sPos = startTile.transform.position, ePos = endTile.transform.position, pPos = player.transform.position;
+        Vector3 off = new Vector3(0, snakeAnimationHeight, 0);
+        if (snakeParticle) Destroy(Instantiate(snakeParticle, pPos, Quaternion.identity), 2f);
 
-    [Header("Optional damage override")]
-    public int overrideDamage = 0;
-
-    [Header("Boss special")]
-    public bool causeShuffleBoard = false;
-    public int advancePlayerBy = 0;
+        float t = 0;
+        while (t < 1f)
+        {
+            t += Time.deltaTime * snakeAnimationSpeed;
+            startTile.transform.position = Vector3.Lerp(sPos, sPos + off, t);
+            endTile.transform.position = Vector3.Lerp(ePos, ePos + off, t);
+            player.transform.position = Vector3.Lerp(pPos, pPos + off, t);
+            yield return null;
+        }
+        player.transform.position = endTile.GetPlayerPosition() + off;
+        yield return new WaitForSeconds(0.5f);
+        t = 0;
+        while (t < 1f)
+        {
+            t += Time.deltaTime * snakeAnimationSpeed;
+            startTile.transform.position = Vector3.Lerp(sPos + off, sPos, t);
+            endTile.transform.position = Vector3.Lerp(ePos + off, ePos, t);
+            player.transform.position = Vector3.Lerp(player.transform.position, endTile.GetPlayerPosition(), t);
+            yield return null;
+        }
+        startTile.transform.position = sPos; endTile.transform.position = ePos;
+        player.transform.position = endTile.GetPlayerPosition();
+    }
 }

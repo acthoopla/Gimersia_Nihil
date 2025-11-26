@@ -16,30 +16,20 @@ public enum TileType
 
     // ----- Combat -----
     Attack,
-    AttackCracked,
     Death,
 
     // ----- Danger 01 (Damage Tile) -----
     Damage,
-    DamageCracked,
 
     // ----- Danger 02 (Debuff Tile) -----
     Disarm,
-    DisarmCracked,
     Provocation,
-    ProvocationCracked,
     Despair,
-    DespairCracked,
 
     // ----- Cards -----
     CardRandom,
     CardMovement,
     CardBuff,
-
-    // ----- Snake Path (Visual Only) -----
-    SnakePathStraight,
-    SnakePathBend1,
-    SnakePathBend2
 }
 
 [DisallowMultipleComponent]
@@ -69,16 +59,13 @@ public class Tiles : MonoBehaviour
 
     [Header("Combat Models")]
     public GameObject attackModel;          // Tile_Attack
-    public GameObject attackCrackedModel;   // Tile_Attack_Cracked
     public GameObject deathModel;           // Tile_Death
 
     [Header("Danger Models (01 = Damage)")]
     public GameObject danger01Model;        // Tile_Danger_01
-    public GameObject danger01CrackedModel; // Tile_Danger_Cracked_01
 
     [Header("Danger Models (02 = Disarm/etc)")]
     public GameObject danger02Model;        // Tile_Danger_02
-    public GameObject danger02CrackedModel; // Tile_Danger_Cracked_02
 
     [Header("Card Models")]
     public GameObject cardBuffModel;        // Tile_Card_Buff_Gold / White
@@ -172,15 +159,13 @@ public class Tiles : MonoBehaviour
         ladderEndModel = FindChildModel(transform, "Tile_Tangga" + theme);
 
         // Combat
-        attackModel = FindChildModel(transform, "Tile_Attack");
-        attackCrackedModel = FindChildModel(transform, "Tile_Attack_Cracked");
+        attackModel = FindChildModel(transform, "Tile_Attack_" + cardTheme);
+
         deathModel = FindChildModel(transform, "Tile_Death");
 
         // Dangers
-        danger01Model = FindChildModel(transform, "Tile_Danger_01");
-        danger01CrackedModel = FindChildModel(transform, "Tile_Danger_Cracked_01");
-        danger02Model = FindChildModel(transform, "Tile_Danger_02");
-        danger02CrackedModel = FindChildModel(transform, "Tile_Danger_Cracked_02");
+        danger01Model = FindChildModel(transform, "Tile_Danger_" + cardTheme + "_01");
+        danger02Model = FindChildModel(transform, "Tile_Danger_" + cardTheme + "_02");
 
         // Cards
         cardRandomModel = FindChildModel(transform, "Tile_Card_Random_" + cardTheme);
@@ -212,13 +197,10 @@ public class Tiles : MonoBehaviour
         if (ladderEndModel) ladderEndModel.SetActive(false);
 
         if (attackModel) attackModel.SetActive(false);
-        if (attackCrackedModel) attackCrackedModel.SetActive(false);
         if (deathModel) deathModel.SetActive(false);
 
         if (danger01Model) danger01Model.SetActive(false);
-        if (danger01CrackedModel) danger01CrackedModel.SetActive(false);
         if (danger02Model) danger02Model.SetActive(false);
-        if (danger02CrackedModel) danger02CrackedModel.SetActive(false);
 
         if (cardRandomModel) cardRandomModel.SetActive(false);
         if (cardBuffModel) cardBuffModel.SetActive(false);
@@ -239,7 +221,6 @@ public class Tiles : MonoBehaviour
 
             // Attack
             case TileType.Attack: if (attackModel) attackModel.SetActive(true); break;
-            case TileType.AttackCracked: if (attackCrackedModel) attackCrackedModel.SetActive(true); else if (attackModel) attackModel.SetActive(true); break;
 
             // Death
             case TileType.Death: if (deathModel) deathModel.SetActive(true); break;
@@ -247,20 +228,13 @@ public class Tiles : MonoBehaviour
             // Danger 01 (Damage) -> Map ke Model Danger 01
             case TileType.Damage:
                 if (danger01Model) danger01Model.SetActive(true); break;
-            case TileType.DamageCracked:
-                if (danger01CrackedModel) danger01CrackedModel.SetActive(true); else if (danger01Model) danger01Model.SetActive(true); break;
 
             // Danger 02 (Disarm / Provoke / Despair) -> Map ke Model Danger 02
             case TileType.Disarm:
             case TileType.Provocation:
             case TileType.Despair:
                 if (danger02Model) danger02Model.SetActive(true); break;
-
-            case TileType.DisarmCracked:
-            case TileType.ProvocationCracked:
-            case TileType.DespairCracked:
-                if (danger02CrackedModel) danger02CrackedModel.SetActive(true); else if (danger02Model) danger02Model.SetActive(true); break;
-
+            
             // Cards
             case TileType.CardRandom:
                 if (cardRandomModel) cardRandomModel.SetActive(true); break;
@@ -276,26 +250,6 @@ public class Tiles : MonoBehaviour
     {
         switch (type)
         {
-            case TileType.Attack:
-                SetType(TileType.AttackCracked, true);
-                break;
-
-            case TileType.Damage:
-                SetType(TileType.DamageCracked, true);
-                break;
-
-            case TileType.Disarm:
-                SetType(TileType.DisarmCracked, true);
-                break;
-
-            case TileType.Provocation:
-                SetType(TileType.ProvocationCracked, true);
-                break;
-
-            case TileType.Despair:
-                SetType(TileType.DespairCracked, true);
-                break;
-
             case TileType.Normal:
                 SetType(TileType.NormalCracked, true);
                 break;
