@@ -14091,6 +14091,7 @@ MonoBehaviour:
   playerHpSlider: {fileID: 1746413847}
   playerHpText: {fileID: 1090692595}
   diceRollText: {fileID: 1070429244}
+  playerState: {fileID: 1337411293}
   goButton: {fileID: 1193869517}
 --- !u!1 &393298362 stripped
 GameObject:
