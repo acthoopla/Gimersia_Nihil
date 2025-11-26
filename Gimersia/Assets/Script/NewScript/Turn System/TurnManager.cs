@@ -20,8 +20,6 @@ public class TurnManager : MonoBehaviour
     private PlayerState currentPlayer => (players.Count > 0) ? players[currentIndex] : null;
 
     private int currentDiceRoll = 0;
-
-    // Flag untuk Tile Effect
     private bool awaitingTileResolve = false;
 
     void Awake() { if (Instance == null) Instance = this; }
@@ -35,8 +33,13 @@ public class TurnManager : MonoBehaviour
         if (players.Count == 0) players.AddRange(FindObjectsOfType<PlayerState>());
         if (diceController) diceController.OnDiceResult += HandleDiceResult;
 
-        // Awal Game: Tombol GO Mati
-        if (UIController.Instance) UIController.Instance.SetGoButtonInteractable(false);
+        // [FIX UTAMA] Hanya matikan input jika game BELUM dimulai.
+        // Jika NewGameManager sudah start duluan, jangan dimatikan lagi!
+        if (state == TurnState.Idle)
+        {
+            if (UIController.Instance) UIController.Instance.SetGoButtonInteractable(false);
+            if (diceInputHandler) diceInputHandler.InputEnabled = false;
+        }
     }
 
     void OnDestroy()
@@ -52,6 +55,8 @@ public class TurnManager : MonoBehaviour
     {
         players = new List<PlayerState>(playerStates);
         currentIndex = Mathf.Clamp(startIndex, 0, players.Count - 1);
+
+        // Mulai Turn Pertama
         StartTurn();
     }
 
@@ -64,7 +69,7 @@ public class TurnManager : MonoBehaviour
     public void ExecutePendingQueue() => OnGoPressed();
 
     // ===========================================================================
-    // LOGIKA UTAMA (TURN FLOW)
+    // LOGIKA UTAMA
     // ===========================================================================
 
     private void StartTurn()
@@ -72,24 +77,24 @@ public class TurnManager : MonoBehaviour
         state = TurnState.StrategyPhase;
         PlayerState p = currentPlayer;
 
-        // 1. Reset status DULUAN (Supaya bersih)
+        // 1. Reset status DULUAN
         p.ResetTemporaryStatus();
 
-        // 2. BARU panggil EventBus (Supaya efek Tile Provocation/Despair masuk SETELAH reset)
+        // 2. BARU panggil event (agar efek tile Provocation/Despair masuk)
         EventBus.TurnStarted(p);
 
         currentDiceRoll = 0;
         if (diceController) diceController.ResetState();
+
+        // [PENTING] Nyalakan Dadu di sini
         if (diceInputHandler) diceInputHandler.InputEnabled = true;
 
         if (UIController.Instance)
         {
             UIController.Instance.ShowModifierPanel();
             UIController.Instance.UpdateDiceText(0);
-            UIController.Instance.SetGoButtonInteractable(false);
+            UIController.Instance.SetGoButtonInteractable(false); // GO Mati sampai dadu dilempar
         }
-
-        Debug.Log($"[TurnManager] Giliran Dimulai: {p.name}");
     }
 
     private void HandleDiceResult(int result)
@@ -97,10 +102,14 @@ public class TurnManager : MonoBehaviour
         if (state != TurnState.StrategyPhase) return;
         currentDiceRoll = result;
 
+        // [REQ] Matikan dadu setelah dilempar
+        if (diceInputHandler) diceInputHandler.InputEnabled = false;
+
+        // Nyalakan Tombol GO
         if (UIController.Instance)
         {
             UIController.Instance.UpdateDiceText(result);
-            UIController.Instance.SetGoButtonInteractable(true); // Enable GO
+            UIController.Instance.SetGoButtonInteractable(true);
         }
     }
 
@@ -113,29 +122,23 @@ public class TurnManager : MonoBehaviour
         if (diceInputHandler) diceInputHandler.InputEnabled = false;
         if (UIController.Instance) UIController.Instance.HideModifierPanel();
 
-        // 1. CEK KARTU OTOMATIS (Jika di slot masih ada)
+        // 1. KARTU OTOMATIS (Jika di slot masih ada)
         if (cardSelectionHolder != null && cardSelectionHolder.GetCardCount() > 0)
         {
             Debug.Log("TurnManager: Menggunakan kartu di slot secara otomatis...");
-
-            // Pindahkan data slot ke pending queue player
             currentPlayer.ConfirmLoadout();
-
-            // [FIX DOUBLE TRIGGER] executeLogic = false.
-            // Artinya: Cuma mainkan animasi kartu terbang. JANGAN jalankan efek kartu di sini.
+            // False = Hanya Animasi, Logic dijalankan di loop bawah
             yield return StartCoroutine(cardSelectionHolder.AnimateUseCards(false));
         }
 
-        // 2. JALANKAN EFEK KARTU (Dari Pending Queue)
-        // Karena ConfirmLoadout() sudah dijalankan, semua kartu sekarang ada di antrean ini.
+        // 2. JALANKAN KARTU (Dari Pending Queue)
         List<NewCardData> pendingCards = currentPlayer.GetAndClearPending();
 
         foreach (NewCardData card in pendingCards)
         {
-            // [LOGIC KARTU SESUNGGUHNYA DISINI]
             card.Play(currentPlayer);
 
-            // Cek jika kartu menyebabkan gerakan
+            // Cek efek gerakan
             if (currentPlayer.pawn != null && currentPlayer.pawn.IsMoving)
             {
                 while (currentPlayer.pawn.IsMoving) yield return null;
@@ -147,7 +150,7 @@ public class TurnManager : MonoBehaviour
 
         // 3. JALAN DADU
         int steps = currentDiceRoll + currentPlayer.nextRollModifier;
-        currentPlayer.nextRollModifier = 0;
+        currentPlayer.nextRollModifier = 0; // Reset modifier setelah dipakai
 
         yield return StartCoroutine(MovePawnTo(currentPlayer, steps));
 
@@ -165,6 +168,10 @@ public class TurnManager : MonoBehaviour
         currentIndex = (currentIndex + 1) % players.Count;
         StartTurn();
     }
+
+    // ===========================================================================
+    // MOVEMENT & TILE LOGIC
+    // ===========================================================================
 
     private IEnumerator MovePawnTo(PlayerState player, int steps)
     {
