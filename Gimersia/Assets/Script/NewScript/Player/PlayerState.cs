@@ -4,14 +4,6 @@ using UnityEngine;
 
 /// <summary>
 /// PlayerState: menyimpan state gameplay seorang pemain.
-/// - SRP: hanya menyimpan data & helper operation (take damage, add/remove card, flags)
-/// - Tidak melakukan movement, UI, atau turn logic.
-/// 
-/// Tambahan: menyediakan backward-compatible aliases:
-/// - pawn (public field)
-/// - heldCards (property yang membungkus hand)
-/// - HasDoubleEdge (property untuk efek double edge)
-/// 
 /// </summary>
 [DisallowMultipleComponent]
 public class PlayerState : MonoBehaviour
@@ -49,10 +41,45 @@ public class PlayerState : MonoBehaviour
     public bool IsHandFull => hand.Count >= maxHandSize;
     public bool HasDoubleEdge { get => hasDoubleEdge; set => hasDoubleEdge = value; }
 
+    // Alias untuk backward compatibility
+    public List<NewCardData> heldCards { get => hand; set => hand = value ?? new List<NewCardData>(); }
+
     void Awake() { currentHP = maxHP; }
     public void NotifyStateChanged() => OnStateChanged?.Invoke(this);
 
-    // --- 1. LOGIC HAND (ADD / REMOVE) ---
+    // --- [PERBAIKAN ERROR] LOGIC PENDING QUEUE ---
+
+    /// <summary>
+    /// Dipanggil oleh TurnManager saat tombol GO ditekan.
+    /// Memindahkan semua kartu dari Slot (Visual) ke Pending Queue (Logic).
+    /// </summary>
+    public void ConfirmLoadout()
+    {
+        if (selectedCards.Count > 0)
+        {
+            // Pindahkan isi selectedCards ke pendingQueue
+            pendingQueue.AddRange(selectedCards);
+
+            // Kosongkan slot visual karena kartu sudah dianggap "terpakai" secara logika
+            selectedCards.Clear();
+
+            NotifyStateChanged(); // Update UI agar slot terlihat kosong saat animasi jalan
+        }
+    }
+
+    public void AddToPending(NewCardData card)
+    {
+        pendingQueue.Add(card);
+    }
+
+    public List<NewCardData> GetAndClearPending()
+    {
+        List<NewCardData> toExecute = new List<NewCardData>(pendingQueue);
+        pendingQueue.Clear();
+        return toExecute;
+    }
+
+    // --- LOGIC HAND (ADD / REMOVE) ---
 
     public bool TryAddCard(NewCardData card)
     {
@@ -62,7 +89,6 @@ public class PlayerState : MonoBehaviour
         return true;
     }
 
-    // FUNGSI INI YANG HILANG SEBELUMNYA (FIX ERROR)
     public bool DiscardCard(NewCardData card)
     {
         bool removed = hand.Remove(card);
@@ -95,21 +121,7 @@ public class PlayerState : MonoBehaviour
         NotifyStateChanged();
     }
 
-    // --- 2. LOGIC PENDING QUEUE ---
-
-    public void AddToPending(NewCardData card)
-    {
-        pendingQueue.Add(card);
-    }
-
-    public List<NewCardData> GetAndClearPending()
-    {
-        List<NewCardData> toExecute = new List<NewCardData>(pendingQueue);
-        pendingQueue.Clear();
-        return toExecute;
-    }
-
-    // --- 3. LOGIC SLOT ---
+    // --- LOGIC SLOT ---
 
     public bool SelectCardToSlot(NewCardData card)
     {
@@ -138,10 +150,12 @@ public class PlayerState : MonoBehaviour
         }
     }
 
-    // --- 4. CORE GAMEPLAY ---
+    // --- CORE GAMEPLAY ---
 
     public void ApplyDamage(int rawDamage, string source = null)
     {
+        if (currentHP <= 0) return; // Sudah mati
+
         if (immuneToAllNegativeTurns > 0) { return; }
 
         if (immuneStacks > 0)
@@ -154,6 +168,12 @@ public class PlayerState : MonoBehaviour
         if (reflectMultiplier > 0)
         {
             Debug.Log($"Reflect {reflectMultiplier}x activated!");
+            if (UIController.Instance.bossState != null)
+            {
+                UIController.Instance.bossState.TakeDamage(rawDamage * reflectMultiplier);
+            }
+            reflectMultiplier = 0;
+            NotifyStateChanged();
             return;
         }
 
@@ -162,6 +182,16 @@ public class PlayerState : MonoBehaviour
 
         currentHP = Mathf.Max(0, currentHP - dmg);
         NotifyStateChanged();
+
+        // Cek Kematian Player
+        if (currentHP <= 0)
+        {
+            Debug.Log("Player Mati (HP Habis)!");
+            if (UIController.Instance != null)
+            {
+                UIController.Instance.ShowGameOver();
+            }
+        }
     }
 
     public void Heal(int amount)

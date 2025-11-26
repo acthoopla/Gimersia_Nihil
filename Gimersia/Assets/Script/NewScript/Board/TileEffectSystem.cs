@@ -329,27 +329,43 @@ public class TileEffectSystem : MonoBehaviour
 
     private bool IsAttackTile(Tiles tile, NewTileProperties props)
     {
-        if (tile.type == TileType.Attack || tile.type == TileType.AttackCracked) return true;
+        // Cek Enum Native
+        if (tile.type == TileType.Attack) return true;
+        // Cek Override dari Teman
         if (props != null && props.forceAsAttack) return true;
+
         return false;
     }
 
     private bool IsNegaTile(Tiles tile, NewTileProperties props)
     {
-        if (tile.type == TileType.Damage || tile.type == TileType.DamageCracked ||
-            tile.type == TileType.Disarm || tile.type == TileType.DisarmCracked ||
-            tile.type == TileType.Provocation || tile.type == TileType.ProvocationCracked ||
-            tile.type == TileType.Despair || tile.type == TileType.DespairCracked) return true;
-        
+        // 1. Cek Enum (Hardcoded List)
+        // Saran: Jika nanti nambah tipe negatif baru, masukkan ke sini
+        if (tile.type == TileType.Damage ||
+            tile.type == TileType.Disarm ||
+            tile.type == TileType.Provocation ||
+            tile.type == TileType.Despair)
+        {
+            return true;
+        }
+
+        // 2. Cek Override dari Teman
         if (props != null && props.isNegaTile) return true;
+
         return false;
     }
 
     private bool IsBossTile(Tiles tile, NewTileProperties props)
     {
+        // 1. Cek Enum
         if (tile.type == TileType.Death) return true;
+
+        // 2. Cek Override dari Teman
         if (props != null && props.isBossTile) return true;
-        if (tile.gameObject.CompareTag("BossTile")) return true;
+
+        // [DIHAPUS] if (tile.gameObject.CompareTag("BossTile")) return true; 
+        // Alasannya: Menyebabkan crash jika Tag tidak terdaftar di Project Settings.
+
         return false;
     }
 }

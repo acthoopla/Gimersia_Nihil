@@ -8,22 +8,27 @@ public class UIController : MonoBehaviour
 {
     public static UIController Instance { get; private set; }
 
+    [Header("--- PANELS ---")]
+    public GameObject gameOverLosePanel;
+    public GameObject gameOverWinPanel;
+
     [Header("--- ENEMY STATUS (KIRI) ---")]
     public Slider enemyHpSlider;
     public TextMeshProUGUI enemyHpText;
-    public BossState bossState; // [MERGE] Referensi punyamu
+    // [FIX ERROR] Variabel ini dikembalikan karena PlayerState membutuhkannya
+    public BossState bossState;
 
     [Header("--- PLAYER STATUS (KANAN) ---")]
     public Slider playerHpSlider;
     public TextMeshProUGUI playerHpText;
     public TextMeshProUGUI diceRollText;
-    
-    [Tooltip("Drag PlayerState di sini agar UI langsung tahu siapa player utamanya")]
+
+    [Tooltip("Drag PlayerState di sini")]
     public PlayerState playerState;
 
-    [Header("--- CARD MODIFIER UI (TEMAN) ---")]
-    public GameObject modifierPanel;        // Panel kotak list kartu
-    public TextMeshProUGUI modifierLogText; // Teks untuk "-1 Move", "Heal", dll
+    [Header("--- CARD MODIFIER UI ---")]
+    public GameObject modifierPanel;
+    public TextMeshProUGUI modifierLogText;
 
     [Header("--- CONTROLS ---")]
     public Button goButton;
@@ -33,53 +38,36 @@ public class UIController : MonoBehaviour
         if (Instance == null) Instance = this;
         else Destroy(gameObject);
 
-        // [MERGE] Auto-find PlayerState (Punyamu)
-        if (playerState == null)
-        {
-            playerState = FindObjectOfType<PlayerState>();
-            // Warning dihapus agar tidak spam error kalau belum ada player spawn
-        }
+        if (playerState == null) playerState = FindObjectOfType<PlayerState>();
 
-        // [MERGE] Hide panel modifier (Punya Teman)
-        if (modifierPanel) modifierPanel.SetActive(false);
+        // Matikan panel di awal
+        if (gameOverLosePanel) gameOverLosePanel.SetActive(false);
+        if (gameOverWinPanel) gameOverWinPanel.SetActive(false);
     }
 
     void Start()
     {
-        if (goButton != null)
-            goButton.onClick.AddListener(OnGoClicked);
-
-        if (diceRollText != null) diceRollText.text = "Roll: -";
-
-        // [MERGE] Update UI Awal (Punyamu)
+        if (goButton != null) goButton.onClick.AddListener(OnGoClicked);
         UpdatePlayerUI(playerState);
     }
 
     void OnEnable()
     {
-        // [MERGE] Subscribe Player Logic (Punyamu)
         if (playerState != null) playerState.OnStateChanged += UpdatePlayerUI;
-
-        // [MERGE] Subscribe Dice Logic (Gabungan)
         var dice = FindObjectOfType<DiceController>();
         if (dice != null) dice.OnDiceResult += UpdateDiceText;
-        
-        EventBus.OnTurnStarted += HandleTurnReset;
     }
 
     void OnDisable()
     {
         if (playerState != null) playerState.OnStateChanged -= UpdatePlayerUI;
-        
         var dice = FindObjectOfType<DiceController>();
         if (dice != null) dice.OnDiceResult -= UpdateDiceText;
-
-        EventBus.OnTurnStarted -= HandleTurnReset;
     }
 
     void Update()
     {
-        // [MERGE] Boss Status Update (Punyamu)
+        // Update Visual Boss HP
         if (bossState != null)
         {
             if (enemyHpSlider != null)
@@ -92,61 +80,42 @@ public class UIController : MonoBehaviour
         }
     }
 
-    // --- EVENT HANDLERS ---
+    // --- FUNGSI UTAMA KONTROL TOMBOL GO ---
+    public void SetGoButtonInteractable(bool state)
+    {
+        if (goButton != null)
+            goButton.interactable = state;
+    }
 
-    // [MERGE] Logic Player HP (Punyamu)
+    public void OnGoClicked()
+    {
+        // Matikan tombol segera agar tidak bisa diklik 2x
+        SetGoButtonInteractable(false);
+
+        if (TurnManager.Instance != null)
+        {
+            // Bisa panggil OnGoPressed atau ExecutePendingQueue (sama saja sekarang)
+            TurnManager.Instance.OnGoPressed();
+        }
+    }
+
+    // --- HELPERS LAINNYA ---
     private void UpdatePlayerUI(PlayerState p)
     {
         if (p == null) return;
-        if (playerHpSlider != null)
-        {
-            playerHpSlider.maxValue = p.maxHP;
-            playerHpSlider.value = p.currentHP;
-        }
+        if (playerHpSlider != null) { playerHpSlider.maxValue = p.maxHP; playerHpSlider.value = p.currentHP; }
         if (playerHpText != null) playerHpText.text = $"{p.currentHP} / {p.maxHP}";
     }
 
-    // [MERGE] Logic Text Dadu (Gabungan)
     public void UpdateDiceText(int result)
     {
         if (diceRollText != null) diceRollText.text = "Roll: " + result;
     }
 
-    private void HandleTurnReset(PlayerState p)
-    {
-        if (diceRollText != null) diceRollText.text = "Roll: -";
-    }
+    public void ShowModifierPanel() { if (modifierPanel) modifierPanel.SetActive(true); }
+    public void HideModifierPanel() { if (modifierPanel) modifierPanel.SetActive(false); }
+    public void AddModifierLog(string text) { if (modifierLogText) modifierLogText.text += $"- {text}\n"; }
 
-    // --- MODIFIER UI (LOGIC TEMAN) ---
-    public void ShowModifierPanel()
-    {
-        if (modifierPanel)
-        {
-            modifierPanel.SetActive(true);
-            if (modifierLogText) modifierLogText.text = "Modifier used:\n";
-        }
-        if (goButton) goButton.interactable = true;
-    }
-
-    public void HideModifierPanel()
-    {
-        if (modifierPanel) modifierPanel.SetActive(false);
-    }
-
-    public void AddModifierLog(string text)
-    {
-        if (modifierLogText) modifierLogText.text += $"- {text}\n";
-    }
-
-    // --- ACTION ---
-    public void OnGoClicked()
-    {
-        if (goButton) goButton.interactable = false;
-
-        // [MERGE] Panggil TurnManager dengan method yang paling lengkap (Punya Teman)
-        if (TurnManager.Instance != null)
-        {
-            TurnManager.Instance.ExecutePendingQueue();
-        }
-    }
+    public void ShowGameOver() { if (gameOverLosePanel) gameOverLosePanel.SetActive(true); }
+    public void ShowVictory() { if (gameOverWinPanel) gameOverWinPanel.SetActive(true); }
 }

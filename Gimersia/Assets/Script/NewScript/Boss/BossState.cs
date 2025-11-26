@@ -1,9 +1,5 @@
 using UnityEngine;
 
-/// <summary>
-/// BossState: menyimpan data boss (HP, apakah boss punya buff double damage, dll)
-/// SRP: hanya data/state, tidak melakukan kalkulasi damage.
-/// </summary>
 public class BossState : MonoBehaviour
 {
     [Header("Boss Stats")]
@@ -11,14 +7,45 @@ public class BossState : MonoBehaviour
     public int currentHP = 100;
 
     [Header("Boss Flags")]
-    [Tooltip("Jika true, boss damage akan dikalikan 2 saat menyerang.")]
     public bool doubleDamageActive = false;
 
-    [Header("References (opsional)")]
-    public Animator animator; // kalau pakai Mecanim
-    public Transform hitPoint; // posisi spawn VFX
+    [Header("References")]
+    public Animator animator;
+    public Transform hitPoint;
+
+    void Awake()
+    {
+        currentHP = maxHP;
+    }
+
+    // --- LOGIC TERIMA DAMAGE (WIN CONDITION) ---
+    public void TakeDamage(int damage)
+    {
+        if (currentHP <= 0) return; // Sudah mati jangan dipukul lagi
+
+        currentHP -= damage;
+        if (currentHP < 0) currentHP = 0;
+
+        Debug.Log($"Boss kena {damage} damage. Sisa HP: {currentHP}");
+
+        if (currentHP <= 0)
+        {
+            Die();
+        }
+    }
+
+    private void Die()
+    {
+        Debug.Log("Boss Mati!");
+        if (animator != null) animator.SetTrigger("Die"); // Jika ada animasi
+
+        // Panggil UI Victory
+        if (UIController.Instance != null)
+        {
+            UIController.Instance.ShowVictory();
+        }
+    }
 
     public void ResetHP() { currentHP = maxHP; }
-
     public bool IsDead => currentHP <= 0;
 }
