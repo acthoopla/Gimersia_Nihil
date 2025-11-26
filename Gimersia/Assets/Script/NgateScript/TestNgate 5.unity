@@ -39766,7 +39766,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 4b958df28b7ac8b4896ca7e4dc79f4f1, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  ladderStepPrefab: {fileID: 4113191915624307835, guid: 965208f96bf23394892cc7fa73edd56b, type: 3}
+  ladderStepPrefab: {fileID: 6528822957825618466, guid: ee299aa912ce12c4c95b3a4bebb4c921, type: 3}
   ladderDeployHeight: 10
   ladderDeploySpeed: 15
   ladderStepDelay: 0.05
