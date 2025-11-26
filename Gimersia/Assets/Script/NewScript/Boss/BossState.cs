@@ -15,37 +15,50 @@ public class BossState : MonoBehaviour
 
     void Awake()
     {
+        // Pastikan HP penuh saat mulai
         currentHP = maxHP;
     }
 
-    // --- LOGIC TERIMA DAMAGE (WIN CONDITION) ---
+    // --- [FIX] WIN CONDITION LOGIC ---
+
     public void TakeDamage(int damage)
     {
-        if (currentHP <= 0) return; // Sudah mati jangan dipukul lagi
+        // Jangan dipukul kalau sudah mati (biar UI Win gak ke-trigger 2x)
+        if (currentHP <= 0) return;
 
         currentHP -= damage;
-        if (currentHP < 0) currentHP = 0;
-
-        Debug.Log($"Boss kena {damage} damage. Sisa HP: {currentHP}");
+        Debug.Log($"Boss terkena {damage} damage! Sisa HP: {currentHP}");
 
         if (currentHP <= 0)
         {
+            currentHP = 0;
             Die();
         }
     }
 
     private void Die()
     {
-        Debug.Log("Boss Mati!");
-        if (animator != null) animator.SetTrigger("Die"); // Jika ada animasi
+        Debug.Log(">>> VICTORY: Boss Defeated! <<<");
+
+        if (animator != null) animator.SetTrigger("Die");
 
         // Panggil UI Victory
         if (UIController.Instance != null)
         {
             UIController.Instance.ShowVictory();
         }
+
+        // Hentikan permainan di TurnManager
+        if (TurnManager.Instance != null)
+        {
+            TurnManager.Instance.state = TurnManager.TurnState.GameOver;
+        }
     }
 
-    public void ResetHP() { currentHP = maxHP; }
+    public void ResetHP()
+    {
+        currentHP = maxHP;
+    }
+
     public bool IsDead => currentHP <= 0;
 }
