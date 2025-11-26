@@ -4,23 +4,26 @@ using System.Collections.Generic;
 
 public enum TileType
 {
-    // Basic
+    // ----- Basic -----
     Normal,
     NormalCracked,
 
-    // Movement
+    // ----- Movement -----
     SnakeStart,
     LadderStart,
     SnakeEnd,
     LadderEnd,
 
-    // Combat
+    // ----- Combat -----
     Attack,
     AttackCracked,
-
     Death,
 
-    // Danger 02 (Disarm/Provocation/Despair)
+    // ----- Danger 01 (Damage Tile) -----
+    Damage,
+    DamageCracked,
+
+    // ----- Danger 02 (Debuff Tile) -----
     Disarm,
     DisarmCracked,
     Provocation,
@@ -28,17 +31,12 @@ public enum TileType
     Despair,
     DespairCracked,
 
-    // Danger 01 (Damage)
-    Damage,
-    DamageCracked,
-
-    // Cards
+    // ----- Cards -----
     CardRandom,
     CardMovement,
     CardBuff,
 
-    // Legacy/Fallback (Enum tetap ada biar script lain gak error, tapi visualnya dihapus)
-
+    // ----- Snake Path (Visual Only) -----
     SnakePathStraight,
     SnakePathBend1,
     SnakePathBend2
@@ -271,6 +269,36 @@ public class Tiles : MonoBehaviour
             case TileType.CardBuff: if (cardBuffModel) cardBuffModel.SetActive(true); break;
 
             default: if (normalModel) normalModel.SetActive(true); break;
+        }
+    }
+
+    public void SetCracked()
+    {
+        switch (type)
+        {
+            case TileType.Attack:
+                SetType(TileType.AttackCracked, true);
+                break;
+
+            case TileType.Damage:
+                SetType(TileType.DamageCracked, true);
+                break;
+
+            case TileType.Disarm:
+                SetType(TileType.DisarmCracked, true);
+                break;
+
+            case TileType.Provocation:
+                SetType(TileType.ProvocationCracked, true);
+                break;
+
+            case TileType.Despair:
+                SetType(TileType.DespairCracked, true);
+                break;
+
+            case TileType.Normal:
+                SetType(TileType.NormalCracked, true);
+                break;
         }
     }
 
