@@ -9,7 +9,7 @@ public class TileEffectSystem : MonoBehaviour
 {
     public static TileEffectSystem Instance { get; private set; }
 
-    [Header("Animation Settings")]
+    [Header("Animation Settings (Ladder)")]
     public GameObject ladderStepPrefab;
     public float ladderDeployHeight = 10f;
     public float ladderDeploySpeed = 15f;
@@ -17,6 +17,7 @@ public class TileEffectSystem : MonoBehaviour
     public float ladderVerticalOffset = 0.1f;
     public float ladderClimbDuration = 1.5f;
 
+    [Header("Animation Settings (Snake)")]
     public GameObject snakeParticle;
     public float snakeAnimationHeight = -2.0f;
     public float snakeAnimationSpeed = 3.0f;
@@ -46,7 +47,6 @@ public class TileEffectSystem : MonoBehaviour
     }
 
     // --- LOGIKA AWAL GILIRAN (Provocation & Despair) ---
-    // Ini memodifikasi dadu SEBELUM dikocok
     private void HandleTurnStarted(PlayerState player)
     {
         if (BoardManager.Instance == null) return;
@@ -92,21 +92,28 @@ public class TileEffectSystem : MonoBehaviour
         }
 
         // =========================================================
-        // LOGIC 1: TANGGA
+        // LOGIC 1: TANGGA (ANIMASI + PILIH HADIAH)
         // =========================================================
         if (tile.type == TileType.LadderStart && tile.targetTile != null)
         {
+            // A. Jalankan Animasi Tangga (Original)
             yield return StartCoroutine(AnimateLadderSequence(player, tile, tile.targetTile));
+
+            // B. Update Data Posisi setelah animasi selesai
             player.TileID = tile.targetTile.tileID;
 
-            // Reward Card Choice
+            // C. Reward Card Choice (Fitur Baru)
             if (BlessingUIManager.Instance != null && NewCardManager.Instance != null)
             {
                 bool choiceMade = false;
                 BlessingUIManager.Instance.ShowCategoryChoice((selectedCategory) =>
                 {
                     NewCardData reward = NewCardManager.Instance.GetRandomCardByCategory(selectedCategory);
-                    if (reward != null) player.TryAddCard(reward);
+                    if (reward != null)
+                    {
+                        if (player.TryAddCard(reward)) Debug.Log($"[Ladder] Got {reward.cardName}");
+                        else Debug.LogWarning("[Ladder] Hand Full!");
+                    }
                     choiceMade = true;
                 });
                 while (!choiceMade) yield return null;
@@ -117,17 +124,21 @@ public class TileEffectSystem : MonoBehaviour
         }
 
         // =========================================================
-        // LOGIC 2: ULAR
+        // LOGIC 2: ULAR (ANIMASI ORIGINAL)
         // =========================================================
         if (tile.type == TileType.SnakeStart && tile.targetTile != null)
         {
             if (player.immuneToSnakeUses > 0)
             {
                 player.immuneToSnakeUses--;
+                Debug.Log("[Snake] Immune Used!");
             }
             else
             {
+                // A. Jalankan Animasi Ular (Original)
                 yield return StartCoroutine(AnimateSnakeSequence(player, tile, tile.targetTile));
+
+                // B. Update Data Posisi
                 player.TileID = tile.targetTile.tileID;
             }
             TurnManager.Instance?.NotifyTileResolveComplete(player);
@@ -150,14 +161,24 @@ public class TileEffectSystem : MonoBehaviour
         }
 
         // =========================================================
-        // LOGIC 4: ATTACK TILE (Ke Boss)
+        // LOGIC 4: ATTACK TILE
         // =========================================================
         if (tile.type == TileType.Attack)
         {
             int row = GetRow(tile.tileID);
             int damage = 0;
+
+            // 1. Hitung Damage Dasar
             if (!rowDamage.TryGetValue(row, out damage)) damage = Mathf.Max(2, row);
 
+            // 2. [FIX] CEK DOUBLE EDGE (Kali 2 jika aktif)
+            if (player.HasDoubleEdge)
+            {
+                damage *= 2;
+                Debug.Log("[Attack] Double Edge Aktif! Damage ke Boss dikali 2.");
+            }
+
+            // 3. Kirim Damage ke Boss
             if (CombatSystem.Instance != null && FindObjectOfType<BossState>() != null)
                 CombatSystem.Instance.ApplyDamageToBoss(FindObjectOfType<BossState>(), damage, "Tile Attack");
 
@@ -166,41 +187,28 @@ public class TileEffectSystem : MonoBehaviour
         }
 
         // =========================================================
-        // LOGIC 5: SPECIAL NEGA TILES (PRIORITAS TINGGI)
-        // [FIX] Cek Disarm DISINI sebelum cek Damage biasa
+        // LOGIC 5: DISARM
         // =========================================================
-
         if (tile.type == TileType.Disarm)
         {
             Debug.Log("[TileEffect] DISARM! Membuang 2 kartu acak.");
             player.DiscardRandom(2);
-
-            // Jika mau Disarm juga mengurangi HP, hapus 'yield break' di bawah ini
-            // dan biarkan code lanjut ke blok Damage.
             TurnManager.Instance?.NotifyTileResolveComplete(player);
             yield break;
         }
 
+        // =========================================================
+        // LOGIC 6: PROVOCATION / DESPAIR (Log Visual Only)
+        // =========================================================
         if (tile.type == TileType.Provocation || tile.type == TileType.Despair)
         {
-            // Efek status sudah ditangani di HandleTurnStarted (awal giliran depan).
-            // Di sini cuma log visual saja.
             Debug.Log($"[TileEffect] Status {tile.type} aktif untuk giliran depan.");
             TurnManager.Instance?.NotifyTileResolveComplete(player);
             yield break;
         }
 
-        if (tile.type == TileType.Death)
-        {
-            // Logika kematian sebenarnya sudah di TurnManager (Tile 100), 
-            // tapi kalau ada tile Death di tengah jalan:
-            player.ApplyDamage(999, "Death Tile");
-            TurnManager.Instance?.NotifyTileResolveComplete(player);
-            yield break;
-        }
-
         // =========================================================
-        // LOGIC 6: GENERIC DAMAGE TILE (Sisa NegaTile)
+        // LOGIC 7: GENERIC DAMAGE TILE
         // =========================================================
         if (tile.type == TileType.Damage || IsNegaTile(tile))
         {
@@ -214,10 +222,18 @@ public class TileEffectSystem : MonoBehaviour
             yield break;
         }
 
+        // Boss & Death
+        if (tile.type == TileType.Death)
+        {
+            player.ApplyDamage(999, "Death Tile");
+            TurnManager.Instance?.NotifyTileResolveComplete(player);
+            yield break;
+        }
+
         TurnManager.Instance?.NotifyTileResolveComplete(player);
     }
 
-    // --- ANIMATIONS & HELPERS (Tetap Sama) ---
+    // --- ANIMATIONS & HELPERS ---
 
     private bool IsNegaTile(Tiles tile)
     {
@@ -229,12 +245,10 @@ public class TileEffectSystem : MonoBehaviour
 
     private int GetRow(int tileID) => tileID <= 0 ? 1 : ((tileID - 1) / 10) + 1;
 
+    // --- ANIMASI TANGGA (Original Logic) ---
     private IEnumerator AnimateLadderSequence(PlayerState player, Tiles startTile, Tiles endTile)
     {
         if (ladderStepPrefab == null) { player.transform.position = endTile.GetPlayerPosition(); yield break; }
-        // ... (Kode animasi tangga sama persis seperti sebelumnya) ...
-        // Agar hemat tempat saya persingkat, tapi pastikan blok animasi ini ada
-        // Kalau hilang, copy dari jawaban sebelumnya.
 
         List<GameObject> deployedSteps = new List<GameObject>();
         Vector3 startPos = startTile.GetPlayerPosition() + Vector3.up * ladderVerticalOffset;
@@ -243,6 +257,7 @@ public class TileEffectSystem : MonoBehaviour
         Quaternion rot = Quaternion.LookRotation((endPos - startPos).normalized);
         int steps = Mathf.Max(1, Mathf.RoundToInt(dist));
 
+        // 1. Spawn Anak Tangga
         for (int i = 0; i <= steps; i++)
         {
             Vector3 finalPos = Vector3.Lerp(startPos, endPos, (float)i / steps);
@@ -255,50 +270,62 @@ public class TileEffectSystem : MonoBehaviour
             yield return new WaitForSeconds(ladderStepDelay);
         }
 
-        Vector3 startClimb = player.transform.position; Vector3 endClimb = endTile.GetPlayerPosition();
+        // 2. Player Memanjat (Lerp Position + LookAt)
+        Vector3 startClimb = player.transform.position;
+        Vector3 endClimb = endTile.GetPlayerPosition();
         float climbTimer = 0f;
+
         player.transform.LookAt(new Vector3(endClimb.x, player.transform.position.y, endClimb.z));
 
         while (climbTimer < 1f)
         {
             climbTimer += Time.deltaTime / ladderClimbDuration;
             player.transform.position = Vector3.Lerp(startClimb, endClimb, climbTimer);
-            if (player.pawn != null) player.pawn.transform.position = player.transform.position;
+            if (player.pawn != null) player.pawn.transform.position = player.transform.position; // Sinkronkan Pawn Visual
             yield return null;
         }
+
         player.transform.position = endClimb;
         if (player.pawn != null) player.pawn.transform.position = endClimb;
+
+        // 3. Hapus Tangga
         foreach (var s in deployedSteps) Destroy(s);
     }
 
+    // --- ANIMASI ULAR (Original Logic) ---
     private IEnumerator AnimateSnakeSequence(PlayerState player, Tiles startTile, Tiles endTile)
     {
-        // ... (Kode animasi ular sama persis seperti sebelumnya) ...
         Vector3 sPos = startTile.transform.position, ePos = endTile.transform.position, pPos = player.transform.position;
-        Vector3 off = new Vector3(0, snakeAnimationHeight, 0);
+        Vector3 off = new Vector3(0, snakeAnimationHeight, 0); // Turun ke bawah tanah
         if (snakeParticle) Destroy(Instantiate(snakeParticle, pPos, Quaternion.identity), 2f);
 
+        // Turun
         float t = 0;
         while (t < 1f)
         {
             t += Time.deltaTime * snakeAnimationSpeed;
-            startTile.transform.position = Vector3.Lerp(sPos, sPos + off, t);
-            endTile.transform.position = Vector3.Lerp(ePos, ePos + off, t);
+            startTile.transform.position = Vector3.Lerp(sPos, sPos + off, t); // Optional: Animasi tile turun
             player.transform.position = Vector3.Lerp(pPos, pPos + off, t);
             yield return null;
         }
+
+        // Pindah Posisi (Di bawah tanah)
         player.transform.position = endTile.GetPlayerPosition() + off;
         yield return new WaitForSeconds(0.5f);
+
+        // Naik
         t = 0;
         while (t < 1f)
         {
             t += Time.deltaTime * snakeAnimationSpeed;
-            startTile.transform.position = Vector3.Lerp(sPos + off, sPos, t);
-            endTile.transform.position = Vector3.Lerp(ePos + off, ePos, t);
+            endTile.transform.position = Vector3.Lerp(ePos + off, ePos, t); // Optional
             player.transform.position = Vector3.Lerp(player.transform.position, endTile.GetPlayerPosition(), t);
             yield return null;
         }
-        startTile.transform.position = sPos; endTile.transform.position = ePos;
+
+        // Reset Posisi Tile (Jaga-jaga)
+        startTile.transform.position = sPos;
+        endTile.transform.position = ePos;
         player.transform.position = endTile.GetPlayerPosition();
     }
 }

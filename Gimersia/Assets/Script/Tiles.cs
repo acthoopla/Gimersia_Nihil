@@ -4,32 +4,41 @@ using System.Collections.Generic;
 
 public enum TileType
 {
-    // ----- Basic -----
+    // Basic
     Normal,
     NormalCracked,
 
-    // ----- Movement -----
+    // Movement
     SnakeStart,
     LadderStart,
     SnakeEnd,
     LadderEnd,
 
-    // ----- Combat -----
+    // Legacy Movement (Opsional, biarkan jika dipakai visual lama)
+    SnakePathStraight, SnakePathBend1, SnakePathBend2,
+
+    // Combat
     Attack,
+    AttackCracked, // <-- INI YANG HILANG TADI
+
     Death,
 
-    // ----- Danger 01 (Damage Tile) -----
-    Damage,
-
-    // ----- Danger 02 (Debuff Tile) -----
+    // Danger 02 (Disarm/Provocation/Despair)
     Disarm,
+    DisarmCracked, // <-- INI YANG HILANG
     Provocation,
+    ProvocationCracked, // <-- INI YANG HILANG
     Despair,
+    DespairCracked, // <-- INI YANG HILANG
 
-    // ----- Cards -----
+    // Danger 01 (Damage)
+    Damage,
+    DamageCracked, // <-- INI YANG HILANG
+
+    // Cards
     CardRandom,
     CardMovement,
-    CardBuff,
+    CardBuff
 }
 
 [DisallowMultipleComponent]
