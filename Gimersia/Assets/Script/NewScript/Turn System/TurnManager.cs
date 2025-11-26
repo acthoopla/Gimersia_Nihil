@@ -71,6 +71,15 @@ public class TurnManager : MonoBehaviour
             currentRollValue = 0;
             if (diceController != null) diceController.ResetState();
 
+            // ==========================================
+            // TAMBAHKAN KODE INI (JANGAN LEWATKAN)
+            // ==========================================
+            Debug.Log($"[TurnManager] Triggering TurnStarted untuk {currentPlayer.name}");
+
+            // Panggil lewat EventBus helper yang sudah kamu buat
+            EventBus.TurnStarted(currentPlayer);
+            // ==========================================
+
             Debug.Log($"Giliran {currentPlayer.name}. Silakan Lempar Dadu.");
             if (diceInputHandler) diceInputHandler.InputEnabled = true;
 

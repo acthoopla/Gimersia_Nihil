@@ -15,14 +15,53 @@ public class TileEffectSystem : MonoBehaviour
     public float ladderStepDelay = 0.05f;
     public float ladderVerticalOffset = 0.1f;
 
+    // --- TAMBAHKAN INI ---
+    [Tooltip("Waktu (detik) yang dibutuhkan player untuk manjat/slide ke atas")]
+    public float ladderClimbDuration = 1.5f;
+
     [Header("Animation Settings (Snake)")]
     public GameObject snakeParticle;
     public float snakeAnimationHeight = -2.0f;
     public float snakeAnimationSpeed = 3.0f;
 
     void Awake() { if (Instance == null) Instance = this; }
-    void OnEnable() { EventBus.OnTileLanded += HandleTileLanded; }
-    void OnDisable() { EventBus.OnTileLanded -= HandleTileLanded; }
+    void OnEnable() 
+    { 
+        EventBus.OnTileLanded += HandleTileLanded;
+        EventBus.OnTurnStarted += HandleTurnStarted;
+    }
+    void OnDisable() 
+    { 
+        EventBus.OnTileLanded -= HandleTileLanded;
+        EventBus.OnTurnStarted -= HandleTurnStarted; // <--- TAMBAH INI (Biar gak memori leak)
+    }
+
+    // --- LOGIKA BARU: DITAMBAHKAN MANUAL ---
+    private void HandleTurnStarted(PlayerState player)
+    {
+        // Pastikan BoardManager ada
+        if (BoardManager.Instance == null) return;
+
+        // 1. Ambil Data Tile tempat player berdiri SAAT INI
+        Tiles currentTile = BoardManager.Instance.GetTileByID(player.TileID);
+
+        if (currentTile != null)
+        {
+            // 2. Cek Provocation (Hanya tipe biasa)
+            if (currentTile.type == TileType.Provocation)
+            {
+                Debug.Log($"[TileEffect] Start Bonus! Player berdiri di Provocation. Next Roll +2.");
+                player.nextRollModifier += 2;
+            }
+            // 3. Cek Despair (Hanya tipe biasa)
+            else if (currentTile.type == TileType.Despair)
+            {
+                Debug.Log($"[TileEffect] Start Penalty! Player berdiri di Despair. Next Roll -2.");
+                player.nextRollModifier -= 2;
+            }
+        }
+    } 
+    // ---------------------------------------
 
     private void HandleTileLanded(PlayerState player, Tiles tile)
     {
@@ -74,7 +113,7 @@ public class TileEffectSystem : MonoBehaviour
         }
 
         // --- 3. ATTACK ---
-        if (tile.type == TileType.Attack || tile.type == TileType.AttackCracked)
+        if (tile.type == TileType.Attack)
         {
             int row = GetRow(tile.tileID);
             int damage = Mathf.Max(2, row);
@@ -88,7 +127,7 @@ public class TileEffectSystem : MonoBehaviour
         }
 
         // --- 4. DAMAGE (Danger 01) & NEGA ---
-        if (tile.type == TileType.Damage || tile.type == TileType.DamageCracked)
+        if (tile.type == TileType.Damage)
         {
             int row = GetRow(tile.tileID);
             int damage = (row >= 8) ? 3 : (row >= 4 ? 2 : 1);
@@ -104,10 +143,12 @@ public class TileEffectSystem : MonoBehaviour
         }
 
         // --- 5. DISARM (Danger 02) ---
-        if (tile.type == TileType.Disarm || tile.type == TileType.DisarmCracked)
+        // --- 5. SPECIAL DANGERS ---
+        if (tile.type == TileType.Disarm || tile.type == TileType.Provocation || tile.type == TileType.Despair)
         {
-            Debug.Log("[Disarm Tile] Logic Disabled for Testing (Should Discard 2 Cards)");
-            // player.DiscardRandom(2); 
+            // Hanya Log saja, tidak ada aksi fisik saat mendarat
+            Debug.Log($"[Special Danger] Mendarat di {tile.type}. Efek aktif di awal giliran depan!");
+
             TurnManager.Instance?.NotifyTileResolveComplete(player);
             yield break;
         }
@@ -169,8 +210,34 @@ public class TileEffectSystem : MonoBehaviour
             yield return new WaitForSeconds(ladderStepDelay);
         }
         yield return new WaitForSeconds(0.2f);
-        player.transform.position = endTile.GetPlayerPosition();
-        if (player.pawn != null) player.pawn.transform.position = endTile.GetPlayerPosition();
+
+        // --- MULAI LOGIKA SLIDE ---
+        Vector3 startClimb = player.transform.position;
+        Vector3 endClimb = endTile.GetPlayerPosition();
+        float climbTimer = 0f;
+
+        // Opsional: Hadapkan player ke arah tangga
+        player.transform.LookAt(new Vector3(endClimb.x, player.transform.position.y, endClimb.z));
+
+        // Loop gerak halus (Lerp)
+        while (climbTimer < 1f)
+        {
+            climbTimer += Time.deltaTime / ladderClimbDuration;
+
+            Vector3 nextPos = Vector3.Lerp(startClimb, endClimb, climbTimer);
+
+            // Update posisi
+            player.transform.position = nextPos;
+            if (player.pawn != null) player.pawn.transform.position = nextPos;
+
+            yield return null;
+        }
+
+        // Pastikan posisi akhir pas
+        player.transform.position = endClimb;
+        if (player.pawn != null) player.pawn.transform.position = endClimb;
+        // --- SELESAI LOGIKA SLIDE ---
+
         yield return new WaitForSeconds(0.5f);
         foreach (var s in deployedSteps) Destroy(s);
     }
