@@ -77,7 +77,7 @@ MonoBehaviour:
   animator: {fileID: 0}
   stepSpeed: 5
   stepDelay: 0.08
-  rotationSpeed: 720
+  turnDuration: 0.3
   teleportSpeed: 12
   positionTolerance: 0.01
   ladderParticle: {fileID: 0}

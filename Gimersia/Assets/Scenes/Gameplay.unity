@@ -2006,10 +2006,14 @@ PrefabInstance:
     - target: {fileID: 2327482096633165336, guid: b956e3b795c20294c8c4a620ab55a67f, type: 3}
       propertyPath: m_OnClick.m_PersistentCalls.m_Calls.Array.data[0].m_Target
       value: 
-      objectReference: {fileID: 0}
+      objectReference: {fileID: 392435305}
     - target: {fileID: 2327482096633165336, guid: b956e3b795c20294c8c4a620ab55a67f, type: 3}
       propertyPath: m_OnClick.m_PersistentCalls.m_Calls.Array.data[0].m_MethodName
-      value: OnResumeGame
+      value: OnResumeGameClicked
+      objectReference: {fileID: 0}
+    - target: {fileID: 2327482096633165336, guid: b956e3b795c20294c8c4a620ab55a67f, type: 3}
+      propertyPath: m_OnClick.m_PersistentCalls.m_Calls.Array.data[0].m_TargetAssemblyTypeName
+      value: UIController, Assembly-CSharp
       objectReference: {fileID: 0}
     - target: {fileID: 2606637989986249061, guid: b956e3b795c20294c8c4a620ab55a67f, type: 3}
       propertyPath: m_Name
@@ -2202,10 +2206,14 @@ PrefabInstance:
     - target: {fileID: 6195305215706408986, guid: b956e3b795c20294c8c4a620ab55a67f, type: 3}
       propertyPath: m_OnClick.m_PersistentCalls.m_Calls.Array.data[0].m_Target
       value: 
-      objectReference: {fileID: 0}
+      objectReference: {fileID: 392435305}
     - target: {fileID: 6195305215706408986, guid: b956e3b795c20294c8c4a620ab55a67f, type: 3}
       propertyPath: m_OnClick.m_PersistentCalls.m_Calls.Array.data[0].m_MethodName
-      value: OnReturnToMainMenu
+      value: OnExitGameClicked
+      objectReference: {fileID: 0}
+    - target: {fileID: 6195305215706408986, guid: b956e3b795c20294c8c4a620ab55a67f, type: 3}
+      propertyPath: m_OnClick.m_PersistentCalls.m_Calls.Array.data[0].m_TargetAssemblyTypeName
+      value: UIController, Assembly-CSharp
       objectReference: {fileID: 0}
     - target: {fileID: 6274647412358596528, guid: b956e3b795c20294c8c4a620ab55a67f, type: 3}
       propertyPath: m_AnchorMax.y
@@ -2242,10 +2250,7 @@ PrefabInstance:
     m_RemovedComponents: []
     m_RemovedGameObjects: []
     m_AddedGameObjects: []
-    m_AddedComponents:
-    - targetCorrespondingSourceObject: {fileID: 2606637989986249061, guid: b956e3b795c20294c8c4a620ab55a67f, type: 3}
-      insertIndex: -1
-      addedObject: {fileID: 620546520}
+    m_AddedComponents: []
   m_SourcePrefab: {fileID: 100100000, guid: b956e3b795c20294c8c4a620ab55a67f, type: 3}
 --- !u!224 &67216410 stripped
 RectTransform:
@@ -14497,6 +14502,11 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   gameOverLosePanel: {fileID: 351541497}
   gameOverWinPanel: {fileID: 2039097421}
+  settingsPanel: {fileID: 620546516}
+  exitButton: {fileID: 2081809513}
+  resumeButton: {fileID: 475452958}
+  openSettingsButton: {fileID: 432605422}
+  mainMenuSceneName: MainMenu
   tileInfoPanel: {fileID: 1990915921}
   tileInfoText: {fileID: 1990915923}
   enemyHpSlider: {fileID: 1072799571}
@@ -14505,7 +14515,7 @@ MonoBehaviour:
   playerHpSlider: {fileID: 1746413847}
   playerHpText: {fileID: 1090692595}
   diceRollText: {fileID: 1070429244}
-  playerState: {fileID: 0}
+  playerState: {fileID: 1337411293}
   modifierPanel: {fileID: 210862416}
   modifierLogText: {fileID: 210862418}
   goButton: {fileID: 1193869517}
@@ -15701,9 +15711,9 @@ MonoBehaviour:
   m_OnClick:
     m_PersistentCalls:
       m_Calls:
-      - m_Target: {fileID: 620546516}
+      - m_Target: {fileID: 0}
         m_TargetAssemblyTypeName: UnityEngine.GameObject, UnityEngine
-        m_MethodName: SetActive
+        m_MethodName: 
         m_Mode: 6
         m_Arguments:
           m_ObjectArgument: {fileID: 0}
@@ -15711,8 +15721,8 @@ MonoBehaviour:
           m_IntArgument: 0
           m_FloatArgument: 0
           m_StringArgument: 
-          m_BoolArgument: 1
-        m_CallState: 2
+          m_BoolArgument: 0
+        m_CallState: 0
 --- !u!114 &432605423
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -16688,6 +16698,17 @@ CanvasRenderer:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 473571099}
   m_CullTransparentMesh: 1
+--- !u!114 &475452958 stripped
+MonoBehaviour:
+  m_CorrespondingSourceObject: {fileID: 2327482096633165336, guid: b956e3b795c20294c8c4a620ab55a67f, type: 3}
+  m_PrefabInstance: {fileID: 67216409}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 4e29b1a8efbd4b44bb3f3716e73f07ff, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
 --- !u!1 &475949197 stripped
 GameObject:
   m_CorrespondingSourceObject: {fileID: 6214210773196337577, guid: 5e66a9215da1bac4e919b3b8f707a8aa, type: 3}
@@ -19894,29 +19915,6 @@ GameObject:
   m_CorrespondingSourceObject: {fileID: 2606637989986249061, guid: b956e3b795c20294c8c4a620ab55a67f, type: 3}
   m_PrefabInstance: {fileID: 67216409}
   m_PrefabAsset: {fileID: 0}
---- !u!223 &620546520
-Canvas:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 620546516}
-  m_Enabled: 1
-  serializedVersion: 3
-  m_RenderMode: 2
-  m_Camera: {fileID: 0}
-  m_PlaneDistance: 100
-  m_PixelPerfect: 0
-  m_ReceivesEvents: 1
-  m_OverrideSorting: 1
-  m_OverridePixelPerfect: 0
-  m_SortingBucketNormalizedSize: 0
-  m_VertexColorAlwaysGammaSpace: 0
-  m_AdditionalShaderChannelsFlag: 0
-  m_UpdateRectTransformForStandalone: 0
-  m_SortingLayerID: 0
-  m_SortingOrder: 10000
-  m_TargetDisplay: 0
 --- !u!1 &621385467 stripped
 GameObject:
   m_CorrespondingSourceObject: {fileID: 3545521245985705488, guid: 5e66a9215da1bac4e919b3b8f707a8aa, type: 3}
@@ -39875,10 +39873,10 @@ MonoBehaviour:
   ladderDeployHeight: 10
   ladderDeploySpeed: 15
   ladderStepDelay: 0.05
-  ladderVerticalOffset: 0.1
+  ladderVerticalOffset: 0.4
   ladderClimbDuration: 1.5
   snakeParticle: {fileID: 4425129568585013132, guid: b458cb447b5242641933f79b7e66e1c1, type: 3}
-  snakeAnimationHeight: -2
+  snakeAnimationHeight: -3
   snakeAnimationSpeed: 3
 --- !u!114 &1380648355
 MonoBehaviour:
@@ -39893,7 +39891,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   stepSpeed: 5
-  stepDelay: 0.08
+  stepDelay: 0.1
   positionTolerance: 0.01
 --- !u!1 &1380713858 stripped
 GameObject:
@@ -57031,6 +57029,17 @@ GameObject:
   m_CorrespondingSourceObject: {fileID: 173672121152909996, guid: 5e66a9215da1bac4e919b3b8f707a8aa, type: 3}
   m_PrefabInstance: {fileID: 2022085769}
   m_PrefabAsset: {fileID: 0}
+--- !u!114 &2081809513 stripped
+MonoBehaviour:
+  m_CorrespondingSourceObject: {fileID: 6195305215706408986, guid: b956e3b795c20294c8c4a620ab55a67f, type: 3}
+  m_PrefabInstance: {fileID: 67216409}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 4e29b1a8efbd4b44bb3f3716e73f07ff, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
 --- !u!1 &2089540348 stripped
 GameObject:
   m_CorrespondingSourceObject: {fileID: 173672121152909996, guid: 5e66a9215da1bac4e919b3b8f707a8aa, type: 3}
@@ -57963,6 +57972,10 @@ PrefabInstance:
       propertyPath: diceInputHandler
       value: 
       objectReference: {fileID: 2067290653}
+    - target: {fileID: 1773522307823395121, guid: 602958899199b3e4a9cda5edcc97fd71, type: 3}
+      propertyPath: cardSelectionHolder
+      value: 
+      objectReference: {fileID: 7668834322156572594}
     - target: {fileID: 2345107419513041846, guid: 602958899199b3e4a9cda5edcc97fd71, type: 3}
       propertyPath: tiles.Array.size
       value: 100
