@@ -16,6 +16,6 @@ MonoBehaviour:
   description: Membalikan Serangan Sebanyak 5 kali lipat dari damage yang diterima
   cardIcon: {fileID: 0}
   cardPrefab: {fileID: 6135567647622964347, guid: 4b65a4b4789572941b8281a03d92a92e, type: 3}
-  category: 3
+  category: 1
   effects:
   - {fileID: 11400000, guid: c0f3a7d35f03d124d96c801932528acc, type: 2}

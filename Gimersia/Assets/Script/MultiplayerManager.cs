@@ -578,7 +578,7 @@ public class MultiplayerManager : MonoBehaviour
 
             player.StopLadderParticle();
         }
-        else if (landed.type == TileType.BlessingCard)
+        else if (landed.type == TileType.CardBuff)
         {
             if (uiManager != null) uiManager.SetActionText($"{player.name} mendarat di petak Blessing!");
             GameObject blessing = Instantiate(blessingParticle, player.transform.position, Quaternion.identity);

@@ -17,4 +17,5 @@ MonoBehaviour:
   cardIcon: {fileID: 0}
   cardPrefab: {fileID: 6135567647622964347, guid: 4b65a4b4789572941b8281a03d92a92e, type: 3}
   category: 0
-  effects: []
+  effects:
+  - {fileID: 11400000, guid: d785e7a8a6cc440458d15e1a80c0f833, type: 2}

@@ -1,9 +1,5 @@
 using UnityEngine;
 
-/// <summary>
-/// BossState: menyimpan data boss (HP, apakah boss punya buff double damage, dll)
-/// SRP: hanya data/state, tidak melakukan kalkulasi damage.
-/// </summary>
 public class BossState : MonoBehaviour
 {
     [Header("Boss Stats")]
@@ -11,14 +7,58 @@ public class BossState : MonoBehaviour
     public int currentHP = 100;
 
     [Header("Boss Flags")]
-    [Tooltip("Jika true, boss damage akan dikalikan 2 saat menyerang.")]
     public bool doubleDamageActive = false;
 
-    [Header("References (opsional)")]
-    public Animator animator; // kalau pakai Mecanim
-    public Transform hitPoint; // posisi spawn VFX
+    [Header("References")]
+    public Animator animator;
+    public Transform hitPoint;
 
-    public void ResetHP() { currentHP = maxHP; }
+    void Awake()
+    {
+        // Pastikan HP penuh saat mulai
+        currentHP = maxHP;
+    }
+
+    // --- [FIX] WIN CONDITION LOGIC ---
+
+    public void TakeDamage(int damage)
+    {
+        // Jangan dipukul kalau sudah mati (biar UI Win gak ke-trigger 2x)
+        if (currentHP <= 0) return;
+
+        currentHP -= damage;
+        Debug.Log($"Boss terkena {damage} damage! Sisa HP: {currentHP}");
+
+        if (currentHP <= 0)
+        {
+            currentHP = 0;
+            Die();
+        }
+    }
+
+    private void Die()
+    {
+        Debug.Log(">>> VICTORY: Boss Defeated! <<<");
+
+        if (animator != null) animator.SetTrigger("Die");
+
+        // Panggil UI Victory
+        if (UIController.Instance != null)
+        {
+            UIController.Instance.ShowVictory();
+        }
+
+        // Hentikan permainan di TurnManager
+        if (TurnManager.Instance != null)
+        {
+            TurnManager.Instance.state = TurnManager.TurnState.GameOver;
+        }
+    }
+
+    public void ResetHP()
+    {
+        currentHP = maxHP;
+    }
 
     public bool IsDead => currentHP <= 0;
 }

@@ -1,76 +1,93 @@
 using UnityEngine;
-using TMPro; // Tetap pakai TMPro sesuai script lamamu
+using TMPro;
 using System.Collections.Generic;
 
-// 1. ENUM DIPERBARUI (Gabungan visual lama + logika baru)
 public enum TileType
 {
+    // Basic
     Normal,
+    NormalCracked,
+
+    // Movement
     SnakeStart,
     LadderStart,
-    SnakeEnd,       // Visual only
-    LadderEnd,      // Visual only
+    SnakeEnd,
+    LadderEnd,
 
-    // Tipe Baru yang WAJIB ada untuk TileEffectSystem:
-    Attack,         // Pemicu Attack Player -> Boss
-    Boss,           // Pemicu Attack Boss -> Player
-    Nega,           // Tile jahat (Debuff)
+    // Legacy Movement (Opsional, biarkan jika dipakai visual lama)
+    SnakePathStraight, SnakePathBend1, SnakePathBend2,
 
-    BlessingCard,
-    MysteryCard,
+    // Combat
+    Attack,
+    AttackCracked, // <-- INI YANG HILANG TADI
 
-    // Visual Jalur Ular
-    SnakePathStraight,
-    SnakePathBend1,
-    SnakePathBend2
+    Death,
+
+    // Danger 02 (Disarm/Provocation/Despair)
+    Disarm,
+    DisarmCracked, // <-- INI YANG HILANG
+    Provocation,
+    ProvocationCracked, // <-- INI YANG HILANG
+    Despair,
+    DespairCracked, // <-- INI YANG HILANG
+
+    // Danger 01 (Damage)
+    Damage,
+    DamageCracked, // <-- INI YANG HILANG
+
+    // Cards
+    CardRandom,
+    CardMovement,
+    CardBuff
 }
 
 [DisallowMultipleComponent]
 public class Tiles : MonoBehaviour
 {
-    [Header("Identitas Tile (Logic)")]
+    [Header("Identitas Tile")]
     public int tileID;
     public TileType type = TileType.Normal;
-    public Tiles targetTile; // Untuk Snake/Ladder destination
+    public Tiles targetTile;
 
-    [Header("Visual Anchor (Logic Baru)")]
-    [Tooltip("Titik berdiri player. Jika kosong, otomatis pakai tengah tile.")]
+    [Header("Visual Anchor")]
     public Transform playerStandPoint;
 
-    [Header("Visual Components (Script Lama)")]
+    [Header("Visual Components")]
     public TextMeshPro tileNumberText;
-    public Transform pathContainer;
 
-    // --- Model References (Script Lama) ---
-    [Header("Visual Models")]
-    public GameObject normalModel;
-    public GameObject snakeStartModel;
-    public GameObject ladderStartModel;
-    public GameObject snakeEndModel;
-    public GameObject ladderEndModel;
-    public GameObject blessingCardModel;
+    // --- Model References (Sesuai Gambar & Tema) ---
+    [Header("Basic Models")]
+    public GameObject normalModel;          // Tile_Emas / Tile_Putih
+    public GameObject normalCrackedModel;   // Tile_EmasCoak / Tile_PutihCoak
 
-    // Tambahan Model untuk Tipe Baru (Opsional, assign di inspector)
-    [Header("New Logic Models")]
-    public GameObject attackModel;
-    public GameObject bossModel;
-    public GameObject negaModel;
+    [Header("Movement Models")]
+    public GameObject snakeStartModel;      // Tile_Snake
+    public GameObject snakeEndModel;        // Tile_BuntutEmas / Tile_BuntutPutih
+    public GameObject ladderStartModel;     // Tile_TanggaEmas / Tile_TanggaPutih
+    public GameObject ladderEndModel;       // (Visual tangga atas)
 
-    [Header("Snake Path Models")]
-    public GameObject snakePathStraightModel;
-    public GameObject snakePathBendModel1;
-    public GameObject snakePathBendModel2;
+    [Header("Combat Models")]
+    public GameObject attackModel;          // Tile_Attack
+    public GameObject deathModel;           // Tile_Death
 
-    // Internal state untuk editor tracking
+    [Header("Danger Models (01 = Damage)")]
+    public GameObject danger01Model;        // Tile_Danger_01
+
+    [Header("Danger Models (02 = Disarm/etc)")]
+    public GameObject danger02Model;        // Tile_Danger_02
+
+    [Header("Card Models")]
+    public GameObject cardBuffModel;        // Tile_Card_Buff_Gold / White
+    public GameObject cardMoveModel;        // Tile_Card_Movement_Gold / White
+    public GameObject cardRandomModel;      // Tile_Card_Random_Gold / White
+
+    // Internal state
     [SerializeField, HideInInspector] private Tiles lastKnownTarget;
     [SerializeField, HideInInspector] private TileType lastKnownType;
     [SerializeField, HideInInspector] private int lastKnownTileID = -1;
     private Vector3 originalPosition;
 
-    void Awake()
-    {
-        originalPosition = transform.position;
-    }
+    void Awake() { originalPosition = transform.position; }
 
     void Start()
     {
@@ -81,55 +98,36 @@ public class Tiles : MonoBehaviour
         lastKnownTileID = tileID;
     }
 
-    // --- LOGIC BARU: GET POSITION ---
-    // Digunakan oleh MovementSystem
     public Vector3 GetPlayerPosition()
     {
-        // Prioritaskan playerStandPoint jika ada, jika tidak pakai logic lama (+0.5f Y)
         if (playerStandPoint != null) return playerStandPoint.position;
         return transform.position + Vector3.up * 0.5f;
     }
 
-    // --- FITUR SCRIPT LAMA (Auto Assign & Visuals) ---
     void OnValidate()
     {
         #region Editor Logic
-        if (transform.localRotation != Quaternion.identity && pathContainer == null)
-            transform.localRotation = Quaternion.identity;
-
         if (tileID != lastKnownTileID && tileID > 0)
         {
             AutoAssignModels();
             lastKnownTileID = tileID;
         }
 
-        // Logic otomatis update tipe target (Snake/Ladder)
         if (type != lastKnownType || targetTile != lastKnownTarget)
         {
-            // Reset target lama jika berubah
             if (lastKnownTarget != null && lastKnownTarget != targetTile)
                 lastKnownTarget.SetType(TileType.Normal, true);
 
-            // Set target baru
             if (type == TileType.LadderStart && targetTile != null)
                 targetTile.SetType(TileType.LadderEnd, true);
             else if (type == TileType.SnakeStart && targetTile != null)
                 targetTile.SetType(TileType.SnakeEnd, true);
 
-            // Jika kembali ke normal
-            if (type == TileType.Normal && lastKnownTarget != null)
-            {
-                if (lastKnownType == TileType.LadderStart || lastKnownType == TileType.SnakeStart)
-                    lastKnownTarget.SetType(TileType.Normal, true);
-            }
-
             lastKnownTarget = targetTile;
             lastKnownType = type;
         }
 
-        // Nama object rapi di hierarchy
         gameObject.name = $"Tile_{tileID}_{type}";
-
         UpdateVisualModel();
         UpdateTileNumber();
         #endregion
@@ -142,36 +140,46 @@ public class Tiles : MonoBehaviour
         if (fromScript) lastKnownType = type;
     }
 
+    // --- LOGIC AUTO ASSIGN (Sesuai Request Ganjil/Genap) ---
     [ContextMenu("Auto-Assign Child Models")]
     void AutoAssignModels()
     {
         if (tileID <= 0) return;
+
+        // ATURAN: Ganjil = Emas, Genap = Putih
         string theme = (tileID % 2 != 0) ? "Emas" : "Putih";
+
+        // Untuk Kartu, nama filenya pakai bahasa Inggris (Gold/White)
+        string cardTheme = (tileID % 2 != 0) ? "Gold" : "White";
 
         Transform textChild = transform.Find("Text (TMP)");
         if (textChild != null) tileNumberText = textChild.GetComponent<TextMeshPro>();
 
-        Transform containerChild = transform.Find("PathContainer");
-        if (containerChild != null) pathContainer = containerChild;
+        // --- Cari Model Berdasarkan Tema ---
 
-        // Cari model berdasarkan nama (sesuai aset kamu)
+        // Basic
         normalModel = FindChildModel(transform, "Tile_" + theme);
-        snakeStartModel = FindChildModel(transform, "Tile_Snake");
-        ladderStartModel = FindChildModel(transform, "Tile_Tangga" + theme);
+        normalCrackedModel = FindChildModel(transform, "Tile_" + theme + "Coak");
+
+        // Movement
+        snakeStartModel = FindChildModel(transform, "Tile_Snake"); // Biasanya Snake cuma 1 warna/umum
         snakeEndModel = FindChildModel(transform, "Tile_Buntut" + theme);
+        ladderStartModel = FindChildModel(transform, "Tile_Tangga" + theme);
         ladderEndModel = FindChildModel(transform, "Tile_Tangga" + theme);
-        blessingCardModel = FindChildModel(transform, "Tile_" + theme + "Plate");
 
-        // Cari model path
-        if (pathContainer != null)
-        {
-            snakePathStraightModel = FindChildModel(pathContainer, "Tile_JalurBuntutLurus" + theme);
-            snakePathBendModel1 = FindChildModel(pathContainer, "Tile_JalurBuntutBelok" + theme + "_1");
-            snakePathBendModel2 = FindChildModel(pathContainer, "Tile_JalurBuntutBelok" + theme + "_2");
-        }
+        // Combat
+        attackModel = FindChildModel(transform, "Tile_Attack_" + cardTheme);
 
-        // Note: Model Attack/Boss/Nega mungkin belum ada di aset lamamu,
-        // jadi assign manual di inspector jika sudah ada prefabnya.
+        deathModel = FindChildModel(transform, "Tile_Death");
+
+        // Dangers
+        danger01Model = FindChildModel(transform, "Tile_Danger_" + cardTheme + "_01");
+        danger02Model = FindChildModel(transform, "Tile_Danger_" + cardTheme + "_02");
+
+        // Cards
+        cardRandomModel = FindChildModel(transform, "Tile_Card_Random_" + cardTheme);
+        cardBuffModel = FindChildModel(transform, "Tile_Card_Buff_" + cardTheme);
+        cardMoveModel = FindChildModel(transform, "Tile_Card_Movement_" + cardTheme);
     }
 
     GameObject FindChildModel(Transform parent, string name)
@@ -188,45 +196,76 @@ public class Tiles : MonoBehaviour
 
     public void UpdateVisualModel()
     {
-        // Matikan semua dulu
+        // 1. Matikan SEMUA
         if (normalModel) normalModel.SetActive(false);
+        if (normalCrackedModel) normalCrackedModel.SetActive(false);
+
         if (snakeStartModel) snakeStartModel.SetActive(false);
-        if (ladderStartModel) ladderStartModel.SetActive(false);
         if (snakeEndModel) snakeEndModel.SetActive(false);
+        if (ladderStartModel) ladderStartModel.SetActive(false);
         if (ladderEndModel) ladderEndModel.SetActive(false);
-        if (blessingCardModel) blessingCardModel.SetActive(false);
+
         if (attackModel) attackModel.SetActive(false);
-        if (bossModel) bossModel.SetActive(false);
-        if (negaModel) negaModel.SetActive(false);
+        if (deathModel) deathModel.SetActive(false);
 
-        // Path models
-        if (snakePathStraightModel) snakePathStraightModel.SetActive(false);
-        if (snakePathBendModel1) snakePathBendModel1.SetActive(false);
-        if (snakePathBendModel2) snakePathBendModel2.SetActive(false);
+        if (danger01Model) danger01Model.SetActive(false);
+        if (danger02Model) danger02Model.SetActive(false);
 
-        // Aktifkan sesuai tipe
+        if (cardRandomModel) cardRandomModel.SetActive(false);
+        if (cardBuffModel) cardBuffModel.SetActive(false);
+        if (cardMoveModel) cardMoveModel.SetActive(false);
+
+        // 2. Nyalakan Sesuai Tipe
         switch (type)
         {
+            // Basic
             case TileType.Normal: if (normalModel) normalModel.SetActive(true); break;
+            case TileType.NormalCracked: if (normalCrackedModel) normalCrackedModel.SetActive(true); else if (normalModel) normalModel.SetActive(true); break;
+
+            // Movement
             case TileType.SnakeStart: if (snakeStartModel) snakeStartModel.SetActive(true); break;
-            case TileType.LadderStart: if (ladderStartModel) ladderStartModel.SetActive(true); break;
             case TileType.SnakeEnd: if (snakeEndModel) snakeEndModel.SetActive(true); break;
+            case TileType.LadderStart: if (ladderStartModel) ladderStartModel.SetActive(true); break;
             case TileType.LadderEnd: if (ladderEndModel) ladderEndModel.SetActive(true); break;
-            case TileType.BlessingCard: if (blessingCardModel) blessingCardModel.SetActive(true); break;
 
-            // Tipe Baru
-            case TileType.Attack: if (attackModel) attackModel.SetActive(true); else if (normalModel) normalModel.SetActive(true); break;
-            case TileType.Boss: if (bossModel) bossModel.SetActive(true); else if (normalModel) normalModel.SetActive(true); break;
-            case TileType.Nega: if (negaModel) negaModel.SetActive(true); else if (normalModel) normalModel.SetActive(true); break;
+            // Attack
+            case TileType.Attack: if (attackModel) attackModel.SetActive(true); break;
 
-            // Paths
-            case TileType.SnakePathStraight: if (snakePathStraightModel) snakePathStraightModel.SetActive(true); break;
-            case TileType.SnakePathBend1: if (snakePathBendModel1) snakePathBendModel1.SetActive(true); break;
-            case TileType.SnakePathBend2: if (snakePathBendModel2) snakePathBendModel2.SetActive(true); break;
+            // Death
+            case TileType.Death: if (deathModel) deathModel.SetActive(true); break;
+
+            // Danger 01 (Damage) -> Map ke Model Danger 01
+            case TileType.Damage:
+                if (danger01Model) danger01Model.SetActive(true); break;
+
+            // Danger 02 (Disarm / Provoke / Despair) -> Map ke Model Danger 02
+            case TileType.Disarm:
+            case TileType.Provocation:
+            case TileType.Despair:
+                if (danger02Model) danger02Model.SetActive(true); break;
+            
+            // Cards
+            case TileType.CardRandom:
+                if (cardRandomModel) cardRandomModel.SetActive(true); break;
+
+            case TileType.CardMovement: if (cardMoveModel) cardMoveModel.SetActive(true); break;
+            case TileType.CardBuff: if (cardBuffModel) cardBuffModel.SetActive(true); break;
+
+            default: if (normalModel) normalModel.SetActive(true); break;
         }
     }
 
-    // --- GIZMOS (Script Lama) ---
+    public void SetCracked()
+    {
+        switch (type)
+        {
+            case TileType.Normal:
+                SetType(TileType.NormalCracked, true);
+                break;
+        }
+    }
+
+    // GIZMOS (Tetap ada untuk debugging)
     void OnDrawGizmos()
     {
         if (targetTile == null) return;

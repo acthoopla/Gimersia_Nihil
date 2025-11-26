@@ -31,15 +31,20 @@ public class SlotUIManager : MonoBehaviour
         foreach (Transform child in slotContainer) Destroy(child.gameObject);
 
         // Render Kartu di Slot (List selectedCards)
-        foreach (NewCardData cardData in player.selectedCards)
+        if (player.selectedCards != null)
         {
-            GameObject newCardObj = Instantiate(cardDisplayPrefab, slotContainer);
-
-            NewCardDisplay cardScript = newCardObj.GetComponent<NewCardDisplay>();
-            if (cardScript != null)
+            foreach (NewCardData cardData in player.selectedCards)
             {
-                // TRUE parameter means "This is in Slot Mode"
-                cardScript.Setup(cardData, player, true);
+                if (cardData == null) continue;
+
+                GameObject newCardObj = Instantiate(cardDisplayPrefab, slotContainer);
+
+                NewCardDisplay cardScript = newCardObj.GetComponent<NewCardDisplay>();
+                if (cardScript != null)
+                {
+                    // TRUE parameter means "This is in Slot Mode"
+                    cardScript.Setup(cardData, player, true);
+                }
             }
         }
     }
@@ -49,7 +54,9 @@ public class SlotUIManager : MonoBehaviour
     {
         if (TurnManager.Instance != null)
         {
-            TurnManager.Instance.OnExecuteButtonPressed();
+            // PERBAIKAN: Mengganti OnExecuteButtonPressed() menjadi ExecutePendingQueue()
+            // Sesuai dengan TurnManager hasil merge terbaru.
+            TurnManager.Instance.ExecutePendingQueue();
         }
     }
 }
