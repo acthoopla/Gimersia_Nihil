@@ -12,6 +12,13 @@ public class BossVisual : MonoBehaviour
     [SerializeField] private float blinkDuration = 0.1f;
     [SerializeField] private int blinkCount = 3;
 
+    [Header("Particle")]
+    [SerializeField] private GameObject bossAttackParticle;
+    [SerializeField] private Transform attackOnePoint;
+    [SerializeField] private Transform attackTwoPoint;
+    [SerializeField] private Transform attackThreePoint;
+    [SerializeField] private Transform attackFourPoint;
+
     private Renderer[] bossRenderers;
     private Material[][] originalMaterials;
     private bool isBlinking = false;
@@ -158,4 +165,43 @@ public class BossVisual : MonoBehaviour
         }
     }
     #endregion
+
+    #region Boss Attack Particle
+    public void AttackOne()
+    {
+        GameObject particle = Instantiate(bossAttackParticle, attackOnePoint.position, Quaternion.identity);
+
+        Destroy(particle, 2f);
+    }
+
+    public void AttackTwo()
+    {
+        GameObject particle = Instantiate(bossAttackParticle, attackTwoPoint.position, Quaternion.identity);
+
+        Destroy(particle, 2f);
+    }
+
+    public void AttackThree()
+    {
+        GameObject particle = Instantiate(bossAttackParticle, attackThreePoint.position, Quaternion.identity);
+
+        Destroy(particle, 2f);
+    }
+
+    public void AttackFour()
+    {
+        GameObject particle = Instantiate(bossAttackParticle, attackFourPoint.position, Quaternion.identity);
+
+        Destroy(particle, 2f);
+    }
+    #endregion
+
+    private void OnDrawGizmos()
+    {
+        Gizmos.color = Color.green;
+        Gizmos.DrawWireSphere(attackOnePoint.position, 0.2f);
+        Gizmos.DrawWireSphere(attackTwoPoint.position, 0.2f);
+        Gizmos.DrawWireSphere(attackThreePoint.position, 0.2f);
+        Gizmos.DrawWireSphere(attackFourPoint.position, 0.2f);
+    }
 }

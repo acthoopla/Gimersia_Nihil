@@ -9,6 +9,6 @@ EditorBuildSettings:
     path: Assets/Scenes/MainMenu.unity
     guid: d70ce8951451d2441a5fc55b8f7018fa
   - enabled: 1
-    path: Assets/Scenes/Polishing.unity
-    guid: 02a200b67fb61a14e8b6eaf6e753999d
+    path: Assets/Scenes/Gameplay.unity
+    guid: d2e365ca9db9cdf4d95a37b8a7998392
   m_configObjects: {}

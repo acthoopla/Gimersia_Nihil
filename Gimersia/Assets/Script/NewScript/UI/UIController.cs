@@ -171,19 +171,19 @@ public class UIController : MonoBehaviour
     {
         switch (tile.type)
         {
-            case TileType.Normal: return "Safe Zone\nIstirahat sejenak.";
-            case TileType.SnakeStart: return "SNAKE!\nKamu turun ke bawah.";
-            case TileType.LadderStart: return "LADDER!\nNaik ke atas & Pilih Hadiah!";
-            case TileType.Damage: return "TRAP!\nKamu terkena Damage.";
-            case TileType.Attack: return "ATTACK!\nSerangan langsung ke Boss.";
+            case TileType.Normal: return "Safe Zone\nTake a break.";
+            case TileType.SnakeStart: return "SNAKE!\nDown you go.";
+            case TileType.LadderStart: return "LADDER!\nAscend & Choose a blessing";
+            case TileType.Damage: return "TRAP!\nAttacked.";
+            case TileType.Attack: return "ATTACK!\nDirect attack on the enemy.";
             case TileType.CardMovement:
             case TileType.CardBuff:
-            case TileType.CardRandom: return "LUCKY!\nKamu mendapatkan Kartu.";
-            case TileType.Disarm: return "DISARM!\n2 Kartu di tanganmu terbuang.";
-            case TileType.Provocation: return "PROVOCATION!\nRoll dadu +2 di giliran depan.";
-            case TileType.Despair: return "DESPAIR!\nRoll dadu -2 di giliran depan.";
+            case TileType.CardRandom: return "BLESSED\nGet a Card(s).";
+            case TileType.Disarm: return "DISARM!\nDiscard 2 cards from your hand.";
+            case TileType.Provocation: return "PROVOKED!\nAdd + 2 move on your next turn.";
+            case TileType.Despair: return "DESPAIR!\nReduce - 2 move on your next turn.";
             case TileType.Death: return "DEATH TILE\nGame Over.";
-            default: return $"Tile {tile.tileID}\nTidak ada efek.";
+            default: return $"Tile {tile.tileID}\nNo effect.";
         }
     }
 

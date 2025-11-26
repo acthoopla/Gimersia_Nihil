@@ -16,6 +16,7 @@ public class BossAttackSystem : MonoBehaviour
     public BoardManager boardManager; // harus berisi GetRowForTile(int)
     public CombatSystem combatSystem; // gunakan ApplyDamageToPlayer
     public BossState bossState;
+    public BossAnimation bossAnimation;
 
     [Header("Damage per row (index 0 => row1, index 9 => row10)")]
     [Tooltip("Isi 10 nilai damage sesuai GDD (size=10).")]
@@ -83,6 +84,7 @@ public class BossAttackSystem : MonoBehaviour
             // Turunkan: masukkan nama trigger anim sesuai animatormu
             // bossState.animator.SetTrigger("Attack");
         }
+
         // Jika kamu ingin spawn efek skill:
         // Spawn VFX: Instantiate(vfxPrefab, bossState.hitPoint.position, Quaternion.identity);
 
@@ -117,7 +119,7 @@ public class BossAttackSystem : MonoBehaviour
         Debug.Log($"[BossAttackSystem] Boss attacked player {player.name} (row {row}) for {finalDamage} dmg (base {baseDamage}).");
     }
 
-    private int GetDamageForRow(int row)
+    public int GetDamageForRow(int row)
     {
         if (damagePerRow == null || damagePerRow.Length < 10) return 1;
         int r = Mathf.Clamp(row, 1, damagePerRow.Length);

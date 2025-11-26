@@ -22,6 +22,10 @@ public class TileEffectSystem : MonoBehaviour
     public float snakeAnimationHeight = -2.0f;
     public float snakeAnimationSpeed = 3.0f;
 
+    [Header("References")]
+    public PlayerAnimation playerAnimation;
+    public BossAnimation bossAnimation;
+
     // Mapping damage per baris
     private readonly Dictionary<int, int> rowDamage = new Dictionary<int, int>()
     {
@@ -168,6 +172,8 @@ public class TileEffectSystem : MonoBehaviour
             int row = GetRow(tile.tileID);
             int damage = 0;
 
+            playerAnimation.PlayAttack();
+
             // 1. Hitung Damage Dasar
             if (!rowDamage.TryGetValue(row, out damage)) damage = Mathf.Max(2, row);
 
@@ -217,6 +223,27 @@ public class TileEffectSystem : MonoBehaviour
 
             if (CombatSystem.Instance != null) CombatSystem.Instance.ApplyDamageToPlayer(player, damage, "Damage Tile");
             else player.ApplyDamage(damage);
+
+            if (BossAttackSystem.Instance?.GetDamageForRow(1) >= BossAttackSystem.Instance?.GetDamageForRow(3))
+            {
+                int random = UnityEngine.Random.Range(0, 2);
+                if (random == 0)
+                {
+                    bossAnimation.PlayAttackOne();
+                }
+                else if (random == 1)
+                {
+                    bossAnimation.PlayAttackTwo();
+                }
+            }
+            else if (BossAttackSystem.Instance?.GetDamageForRow(4) >= BossAttackSystem.Instance?.GetDamageForRow(7))
+            {
+                bossAnimation.PlayAttackThree();
+            }
+            else if (BossAttackSystem.Instance?.GetDamageForRow(8) >= BossAttackSystem.Instance?.GetDamageForRow(10))
+            {
+                bossAnimation.PlayAttackFour();
+            }
 
             TurnManager.Instance?.NotifyTileResolveComplete(player);
             yield break;

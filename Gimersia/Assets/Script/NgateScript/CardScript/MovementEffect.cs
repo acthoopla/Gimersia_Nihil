@@ -21,10 +21,10 @@ public class MovementEffect : CardEffect
         Debug.Log($"[Effect] Movement Modifier Active: {stepAmount}. Total Modifier: {target.nextRollModifier}");
 
         // Opsional: Beri tahu UI kalau modifier nambah (biar player sadar efeknya masuk)
-        if (UIController.Instance != null)
-        {
-            string tanda = stepAmount > 0 ? "+" : "";
-            UIController.Instance.AddModifierLog($"Dice {tanda}{stepAmount}");
-        }
+        // if (UIController.Instance != null)
+        // {
+        //     string tanda = stepAmount > 0 ? "+" : "";
+        //     UIController.Instance.AddModifierLog($"Dice {tanda}{stepAmount}");
+        // }
     }
 }
