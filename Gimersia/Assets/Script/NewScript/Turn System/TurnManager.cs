@@ -8,7 +8,18 @@ public class TurnManager : MonoBehaviour
 {
     public static TurnManager Instance { get; private set; }
 
-    public enum TurnState { Idle, Rolling, StrategyPhase, Moving, ResolveTile, EndTurn, GameOver }
+    public enum TurnState
+    {
+        Idle,
+        StartTurn,
+        StrategyPhase,  // FASE UTAMA: Bebas Lempar Dadu & Pilih Kartu
+        Executing,      // Sedang menjalankan Queue (Dadu -> Kartu 1 -> Kartu 2)
+        Moving,         // Sub-state: Animasi Jalan
+        ResolveTile,    // Sub-state: Efek Tile
+        EndTurn,
+        GameOver
+    }
+
     public TurnState state = TurnState.Idle;
 
     [Header("References")]
@@ -17,10 +28,14 @@ public class TurnManager : MonoBehaviour
 
     public List<PlayerState> players = new List<PlayerState>();
     private int currentIndex = 0;
-    private PlayerState currentPlayer => (players.Count > 0) ? players[currentIndex] : null;
+    private PlayerState currentPlayer => (players.Count > 0 && currentIndex >= 0 && currentIndex < players.Count) ? players[currentIndex] : null;
 
-    private int currentRollValue = 0;
+    // Variabel Dadu & Tombol
+    private int currentDiceRoll = 0;
+    private bool hasRolledDice = false;
     private bool goButtonPressed = false;
+
+    // Variabel Tile
     private bool awaitingTileResolve = false;
 
     void Awake() { if (Instance == null) Instance = this; else Destroy(gameObject); }
@@ -29,6 +44,7 @@ public class TurnManager : MonoBehaviour
     {
         if (diceController == null) diceController = FindObjectOfType<DiceController>();
         if (diceInputHandler == null) diceInputHandler = FindObjectOfType<DiceInputHandler>();
+
         if (diceController != null) diceController.OnDiceResult += HandleDiceResult;
     }
 
@@ -37,7 +53,10 @@ public class TurnManager : MonoBehaviour
         if (diceController != null) diceController.OnDiceResult -= HandleDiceResult;
     }
 
-    // --- PUBLIC API ---
+    // =======================================================================
+    // PUBLIC API
+    // =======================================================================
+
     public void StartGame(List<PlayerState> playerStates, int startIndex = 0)
     {
         players = new List<PlayerState>(playerStates);
@@ -47,117 +66,196 @@ public class TurnManager : MonoBehaviour
 
     public void NotifyTileResolveComplete(PlayerState player)
     {
-        if (state == TurnState.ResolveTile && player == currentPlayer)
-            awaitingTileResolve = false;
+        if (player == currentPlayer) awaitingTileResolve = false;
     }
 
-    public void OnExecuteButtonPressed() => OnGoPressed();
+    // [MERGE] Alias agar tombol UI lama tetap jalan
+    public void OnGoPressed() => ExecutePendingQueue();
 
-    public void OnGoPressed()
+    public void ExecutePendingQueue()
     {
-        if (state == TurnState.StrategyPhase) goButtonPressed = true;
+        if (state == TurnState.StrategyPhase)
+        {
+            if (!hasRolledDice)
+            {
+                Debug.LogWarning("Harap lempar dadu terlebih dahulu sebelum GO!");
+                return;
+            }
+            Debug.Log(">>> EXECUTE QUEUE! <<<");
+            goButtonPressed = true;
+        }
     }
 
-    // --- LOOP ---
+    // =======================================================================
+    // LOGIKA LOOP (MENGGUNAKAN STRUKTUR TEMAN AGAR KARTU JALAN)
+    // =======================================================================
+
     private IEnumerator RunTurnLoop()
     {
         while (true)
         {
             if (players.Count == 0) yield break;
 
-            // 1. Start Turn
-            state = TurnState.Rolling;
+            // 1. START TURN
+            state = TurnState.StartTurn;
+            PlayerState p = currentPlayer;
+
+            EventBus.TurnStarted(p); // [MERGE] Trigger punyamu
+            p.ResetTemporaryStatus();
+            yield return null;
+
+            // 2. STRATEGY PHASE (Dadu + Kartu)
+            state = TurnState.StrategyPhase;
+            currentDiceRoll = 0;
+            hasRolledDice = false;
             goButtonPressed = false;
-            currentRollValue = 0;
+
             if (diceController != null) diceController.ResetState();
-
-            // ==========================================
-            // TAMBAHKAN KODE INI (JANGAN LEWATKAN)
-            // ==========================================
-            Debug.Log($"[TurnManager] Triggering TurnStarted untuk {currentPlayer.name}");
-
-            // Panggil lewat EventBus helper yang sudah kamu buat
-            EventBus.TurnStarted(currentPlayer);
-            // ==========================================
-
-            Debug.Log($"Giliran {currentPlayer.name}. Silakan Lempar Dadu.");
             if (diceInputHandler) diceInputHandler.InputEnabled = true;
 
-            // 2. Tunggu Dadu
-            while (state == TurnState.Rolling) yield return null;
+            // Tampilkan UI Card Modifier (Punya Teman)
+            if (UIController.Instance != null)
+            {
+                UIController.Instance.ShowModifierPanel();
+                UIController.Instance.UpdateDiceText(0);
+            }
 
-            // 3. Tunggu Go
-            Debug.Log($"Dadu: {currentRollValue}. Tekan GO untuk jalan.");
+            Debug.Log($"[Turn] Giliran {p.name}. Strategy Phase.");
+
+            // TUNGGU TOMBOL GO
             while (!goButtonPressed) yield return null;
 
-            // 4. Jalan & Efek
-            yield return StartCoroutine(MoveSequence());
+            // 3. EKSEKUSI
+            state = TurnState.Executing;
+            if (diceInputHandler) diceInputHandler.InputEnabled = false;
+            if (UIController.Instance != null) UIController.Instance.HideModifierPanel();
 
-            // 5. Next Player
-            currentIndex = (currentIndex + 1) % players.Count;
+            yield return StartCoroutine(ExecuteTurnSequence());
+
+            // 4. SELESAI
+            state = TurnState.EndTurn;
+            EventBus.TurnEnded(p);
+
+            AdvanceToNextActivePlayer();
             yield return new WaitForSeconds(0.5f);
         }
     }
 
     private void HandleDiceResult(int result)
     {
-        if (state != TurnState.Rolling) return;
-        currentRollValue = result;
-        if (diceInputHandler) diceInputHandler.InputEnabled = false;
-        state = TurnState.StrategyPhase;
+        if (state != TurnState.StrategyPhase) return;
+        currentDiceRoll = result;
+        hasRolledDice = true;
+        if (UIController.Instance != null) UIController.Instance.UpdateDiceText(result);
     }
 
-    private IEnumerator MoveSequence()
+    // =======================================================================
+    // SEQUENCE (Jalan Dadu -> Jalan Kartu)
+    // =======================================================================
+
+    private IEnumerator ExecuteTurnSequence()
     {
+        // A. JALAN DADU
+        Debug.Log($"[Sequence] 1. Jalan Dadu: {currentDiceRoll}");
+        int startTile = currentPlayer.TileID;
+        int targetWithDice = startTile + currentDiceRoll + currentPlayer.nextRollModifier;
+        currentPlayer.nextRollModifier = 0; // Reset modifier
+
+        yield return StartCoroutine(MovePawnTo(currentPlayer, targetWithDice));
+        yield return new WaitForSeconds(0.5f);
+
+        // B. JALAN KARTU (Pending List)
+        List<NewCardData> pendingCards = currentPlayer.GetAndClearPending(); // Pastikan PlayerState punya method ini
+
+        if (pendingCards.Count > 0)
+        {
+            Debug.Log($"[Sequence] 2. Menjalankan {pendingCards.Count} Kartu.");
+            foreach (NewCardData card in pendingCards)
+            {
+                // Logic Kartu (Punya Teman)
+                card.Play(currentPlayer);
+                currentPlayer.ConsumeSelectedCard(card);
+
+                yield return null;
+                // Jika kartu menyebabkan gerakan, tunggu sampai selesai
+                if (currentPlayer.pawn != null && currentPlayer.pawn.IsMoving)
+                {
+                    // Tunggu movement system selesai (Punya Teman logika wait-nya, tapi pakai MovementSystem punyamu)
+                    float timeOut = 3f;
+                    while (currentPlayer.pawn.IsMoving && timeOut > 0)
+                    {
+                        timeOut -= Time.deltaTime;
+                        yield return null;
+                    }
+                    // Cek efek tile setelah kartu jalan
+                    yield return StartCoroutine(ResolveTileEffect(currentPlayer));
+                }
+                yield return new WaitForSeconds(0.5f);
+            }
+        }
+    }
+
+    // [MERGE] Core Movement Logic
+    private IEnumerator MovePawnTo(PlayerState player, int targetTile)
+    {
+        // 1. Validasi Batas Board
+        int maxTile = (BoardManager.Instance != null) ? BoardManager.Instance.totalTiles : 100;
+        if (targetTile < 1) targetTile = 1;
+        if (targetTile > maxTile)
+        {
+            int overshoot = targetTile - maxTile;
+            targetTile = maxTile - overshoot;
+        }
+
+        // 2. Gerak Pawn (MENGGUNAKAN MOVEMENT SYSTEM PUNYAMU)
         state = TurnState.Moving;
 
-        int startTile = currentPlayer.TileID;
-        int moves = currentRollValue + currentPlayer.nextRollModifier;
-        currentPlayer.nextRollModifier = 0;
-
-        int targetTile = Mathf.Max(1, startTile + moves);
-        int maxTile = (BoardManager.Instance != null) ? BoardManager.Instance.totalTiles : 100;
-
-        if (targetTile > maxTile) targetTile = maxTile - (targetTile - maxTile);
-        if (targetTile < 1) targetTile = 1;
-
-        // --- PERGERAKAN ---
         if (MovementSystem.Instance != null)
         {
-            // Tunggu animasi jalan selesai
-            yield return StartCoroutine(MovementSystem.Instance.MovePlayerToTileCoroutine(currentPlayer, targetTile));
+            // [MERGE] Gunakan Coroutine Punyamu untuk animasi langkah
+            yield return StartCoroutine(MovementSystem.Instance.MovePlayerToTileCoroutine(player, targetTile));
         }
         else
         {
-            currentPlayer.TileID = targetTile; // Teleport instant jika gak ada movement system
+            // Fallback teleport
+            player.TileID = targetTile;
         }
 
-        // --- PAKSA TRIGGER TILE EFFECT DISINI (FIX ERROR LOG KOSONG) ---
-        // Kita tidak lagi menunggu EventBus dari MovementSystem yang sering macet.
-        // Kita panggil langsung karena kita tahu pergerakan sudah selesai di baris atas.
-
-        state = TurnState.ResolveTile;
-
+        // 3. Trigger Tile Effect Manual (Penting agar tidak miss event)
         var bm = BoardManager.Instance;
-        // Ambil tile data dari posisi terakhir player
-        Tiles landedTile = (bm != null) ? bm.GetTileByID(currentPlayer.TileID) : null;
+        Tiles landedTile = (bm != null) ? bm.GetTileByID(player.TileID) : null;
 
-        Debug.Log($"[TurnManager] Force Trigger Tile Landed pada ID: {currentPlayer.TileID}");
-        EventBus.TileLanded(currentPlayer, landedTile);
+        Debug.Log($"[TurnManager] Landed on {player.TileID}. Triggering Effects...");
+        EventBus.TileLanded(player, landedTile);
 
-        // --- TUNGGU EFEK SELESAI ---
+        // 4. Tunggu Efek Selesai (Snake, Ladder, dll)
+        yield return StartCoroutine(ResolveTileEffect(player));
+    }
+
+    private IEnumerator ResolveTileEffect(PlayerState player)
+    {
+        state = TurnState.ResolveTile;
         awaitingTileResolve = true;
+
         if (TileEffectSystem.Instance != null)
         {
             float timer = 0;
-            // Tunggu sampai NotifyTileResolveComplete dipanggil atau timeout 3 detik
+            // Tunggu flag 'awaitingTileResolve' dimatikan oleh TileEffectSystem
             while (awaitingTileResolve && timer < 3.0f)
             {
                 timer += Time.deltaTime;
                 yield return null;
             }
         }
+        else
+        {
+            awaitingTileResolve = false;
+        }
+    }
 
-        state = TurnState.EndTurn;
+    private void AdvanceToNextActivePlayer()
+    {
+        if (players.Count == 0) return;
+        currentIndex = (currentIndex + 1) % players.Count;
     }
 }

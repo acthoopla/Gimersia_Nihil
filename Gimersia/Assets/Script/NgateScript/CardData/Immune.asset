@@ -16,6 +16,6 @@ MonoBehaviour:
   description: Terbebas dari serangan apapun sebanyak 1 kali
   cardIcon: {fileID: 0}
   cardPrefab: {fileID: 6135567647622964347, guid: 4b65a4b4789572941b8281a03d92a92e, type: 3}
-  category: 3
+  category: 1
   effects:
   - {fileID: 11400000, guid: 51c8eca7aa0d77b42a6fb2968628d1d0, type: 2}

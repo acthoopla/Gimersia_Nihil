@@ -2,94 +2,107 @@ using System;
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.UI;
+using static NewCardSystem;
 
 public class BlessingUIManager : MonoBehaviour
 {
     public static BlessingUIManager Instance { get; private set; }
 
-    [Header("UI References")]
-    public GameObject blessingPanel; // Panel Hitam/Background UI
-    public Transform cardsContainer; // Tempat spawn 3 kartu (Horizontal Layout Group)
-    public GameObject cardDisplayPrefab; // Prefab UI Kartu (yang ada script NewCardDisplay)
+    [Header("UI References (3 Card Choice)")]
+    public GameObject blessingPanel;
+    public Transform cardsContainer;
+    public GameObject cardDisplayPrefab;
 
-    [Header("Settings")]
-    public float showDelay = 0.5f;
+    // --- REFERENSI UI KATEGORI (Untuk Tangga) ---
+    [Header("UI References (Category Choice)")]
+    public GameObject categoryPanel; // Panel baru untuk milih tipe
+    public Button movementBtn;
+    public Button buffBtn;
+    // -------------------------------------------
 
-    private Action onChoiceMadeCallback; // Fungsi untuk melanjutkan game setelah milih
+    private Action onChoiceMadeCallback;
+    private Action<CardCategory> onCategorySelectedCallback;
 
     void Awake()
     {
+        // Singleton Setup yang Benar
         if (Instance == null) Instance = this;
         else Destroy(gameObject);
 
-        // Sembunyikan panel saat awal
         if (blessingPanel) blessingPanel.SetActive(false);
+        if (categoryPanel) categoryPanel.SetActive(false);
+
+        // Setup Button Listeners untuk Kategori
+        if (movementBtn) movementBtn.onClick.AddListener(() => OnCategoryClicked(CardCategory.Movement));
+        if (buffBtn) buffBtn.onClick.AddListener(() => OnCategoryClicked(CardCategory.Buff));
     }
 
-    /// <summary>
-    /// Memunculkan UI Blessing dengan 3 pilihan kartu spesifik.
-    /// </summary>
+    // --- FUNGSI 1: LOGIC PILIH 3 KARTU (Blessing Card) ---
     public void ShowBlessingChoice(PlayerState player, NewCardData c1, NewCardData c2, NewCardData c3, Action onComplete)
     {
         if (blessingPanel == null) return;
-
         onChoiceMadeCallback = onComplete;
 
-        // Bersihkan kartu lama di container
         foreach (Transform child in cardsContainer) Destroy(child.gameObject);
 
-        // List kartu untuk di-loop
         List<NewCardData> choices = new List<NewCardData> { c1, c2, c3 };
-
-        // Spawn 3 Kartu
         foreach (var cardData in choices)
         {
             if (cardData == null) continue;
-
             GameObject cardObj = Instantiate(cardDisplayPrefab, cardsContainer);
 
-            // Setup Visual menggunakan NewCardDisplay
-            NewCardDisplay display = cardObj.GetComponent<NewCardDisplay>();
+            // Kita pakai NewCardDisplay untuk visual
+            NewCardDisplay display = cardObj.GetComponent<NewCardDisplay>(); // Pastikan script ini ada di prefab
+
             if (display != null)
             {
-                // Kita gunakan mode Slot (true) atau modif sedikit agar bisa diklik untuk dipilih
-                // Di sini saya asumsikan NewCardDisplay kamu punya event click.
-                // TAPI, NewCardDisplay kamu saat ini logic kliknya untuk Pindah Slot/Hand.
-                // KITA BUTUH MODIFIKASI SEDIKIT DI SINI.
-
-                // Cara Cepat: Tambahkan Button component di runtime atau gunakan EventTrigger
+                // Tambahkan tombol klik manual jika NewCardDisplay tidak handle klik pemilihan
                 Button btn = cardObj.GetComponent<Button>();
                 if (btn == null) btn = cardObj.AddComponent<Button>();
 
-                // Saat diklik -> Pilih kartu ini
                 btn.onClick.AddListener(() => OnCardPicked(player, cardData));
 
-                // Setup visual dasar
+                // Setup tampilan (false = mode hand biasa, tidak di slot)
                 display.Setup(cardData, player, false);
             }
         }
-
         blessingPanel.SetActive(true);
     }
 
     void OnCardPicked(PlayerState player, NewCardData pickedCard)
     {
-        Debug.Log($"[Blessing] Player memilih: {pickedCard.cardName}");
-
-        // 1. Masukkan kartu ke tangan player
         if (player.TryAddCard(pickedCard))
         {
-            // Berhasil
+            Debug.Log($"[Blessing] Player mengambil: {pickedCard.cardName}");
         }
         else
         {
-            Debug.LogWarning("Hand penuh! Kartu hangus.");
+            Debug.LogWarning("Hand penuh!");
+        }
+        blessingPanel.SetActive(false);
+        onChoiceMadeCallback?.Invoke();
+    }
+
+    // --- FUNGSI 2: LOGIC PILIH KATEGORI (Untuk Tangga / Ladder) ---
+    // INI FUNGSI YANG SEBELUMNYA HILANG (FIX CS1061)
+    public void ShowCategoryChoice(Action<CardCategory> callback)
+    {
+        if (categoryPanel == null)
+        {
+            Debug.LogWarning("Category Panel belum di-assign di Inspector BlessingUIManager!");
+            // Jika lupa assign, panggil callback dengan default biar game ga macet
+            callback?.Invoke(CardCategory.Movement);
+            return;
         }
 
-        // 2. Tutup Panel
-        blessingPanel.SetActive(false);
+        onCategorySelectedCallback = callback;
+        categoryPanel.SetActive(true);
+    }
 
-        // 3. Lanjutkan Game (Panggil TileEffectSystem agar TurnManager lanjut)
-        onChoiceMadeCallback?.Invoke();
+    private void OnCategoryClicked(CardCategory category)
+    {
+        Debug.Log($"[UI] Player memilih kategori: {category}");
+        categoryPanel.SetActive(false);
+        onCategorySelectedCallback?.Invoke(category);
     }
 }

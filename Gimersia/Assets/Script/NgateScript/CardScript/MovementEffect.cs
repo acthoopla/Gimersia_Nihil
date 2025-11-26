@@ -13,20 +13,20 @@ public class MovementEffect : CardEffect
         int currentTile = target.TileID;
         int targetTile = currentTile + stepAmount;
 
-        // Validasi batas minimum tile (misal tile 1)
         if (targetTile < 1) targetTile = 1;
-        // Validasi batas max tile bisa diambil dari BoardManager jika ada
 
-        Debug.Log($"[Effect] Move {stepAmount} steps. From {currentTile} to {targetTile}");
+        if (BoardManager.Instance != null && targetTile > BoardManager.Instance.totalTilesInBoard)
+            targetTile = BoardManager.Instance.totalTilesInBoard;
 
-        // Update Data
-        target.TileID = targetTile;
-        target.NotifyStateChanged();
-
-        // Trigger Visual Pawn
+        Debug.Log($"[Effect] Move {stepAmount}. From {currentTile} -> {targetTile}");
         if (target.pawn != null)
         {
             target.pawn.StartCoroutine(target.pawn.MoveToTile(targetTile));
+        }
+        else
+        {
+            target.TileID = targetTile;
+            target.NotifyStateChanged();
         }
     }
 }
