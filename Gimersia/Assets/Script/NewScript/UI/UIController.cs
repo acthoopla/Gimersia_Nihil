@@ -9,6 +9,9 @@ public class UIController : MonoBehaviour
 {
     public static UIController Instance { get; private set; }
 
+    [Header("References")]
+    public SceneLoader sceneLoader;
+
     [Header("--- PANELS ---")]
     public GameObject gameOverLosePanel;
     public GameObject gameOverWinPanel;
@@ -28,6 +31,7 @@ public class UIController : MonoBehaviour
 
     [Tooltip("Nama Scene Main Menu (Case Sensitive!)")]
     public string mainMenuSceneName = "MainMenu";
+    public string gameplaySceneName = "Gameplay";
 
     [Header("--- TILE INFO UI ---")]
     public GameObject tileInfoPanel;
@@ -150,10 +154,16 @@ public class UIController : MonoBehaviour
         }
     }
 
+    public void OnRestartGameClicked()
+    {
+        Debug.Log("Exit Game Clicked");
+        sceneLoader.LoadNextLevel(gameplaySceneName);
+    }
+
     public void OnExitGameClicked()
     {
         Debug.Log("Exit Game Clicked");
-        SceneManager.LoadScene(mainMenuSceneName);
+        sceneLoader.LoadNextLevel(mainMenuSceneName);
     }
 
     // ============================================================
