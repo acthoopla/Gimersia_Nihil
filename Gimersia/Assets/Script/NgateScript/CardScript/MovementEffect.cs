@@ -5,28 +5,26 @@ using UnityEngine;
 [CreateAssetMenu(menuName = "Card Effects/Movement Effect")]
 public class MovementEffect : CardEffect
 {
-    [Tooltip("Positif = Maju, Negatif = Mundur")]
+    [Tooltip("Positif = Tambah langkah, Negatif = Kurangi langkah")]
     public int stepAmount;
 
     public override void ApplyEffect(PlayerState target)
     {
-        int currentTile = target.TileID;
-        int targetTile = currentTile + stepAmount;
+        // LOGIKA LAMA (SALAH):
+        // target.pawn.MoveToTile(...) <-- Ini yang bikin jalan 2x
 
-        if (targetTile < 1) targetTile = 1;
+        // LOGIKA BARU (BENAR):
+        // Cukup tambahkan angka ke modifier. 
+        // Nanti TurnManager yang akan menjumlahkan (Dadu + Modifier) saat fase jalan.
+        target.nextRollModifier += stepAmount;
 
-        if (BoardManager.Instance != null && targetTile > BoardManager.Instance.totalTilesInBoard)
-            targetTile = BoardManager.Instance.totalTilesInBoard;
+        Debug.Log($"[Effect] Movement Modifier Active: {stepAmount}. Total Modifier: {target.nextRollModifier}");
 
-        Debug.Log($"[Effect] Move {stepAmount}. From {currentTile} -> {targetTile}");
-        if (target.pawn != null)
+        // Opsional: Beri tahu UI kalau modifier nambah (biar player sadar efeknya masuk)
+        if (UIController.Instance != null)
         {
-            target.pawn.StartCoroutine(target.pawn.MoveToTile(targetTile));
-        }
-        else
-        {
-            target.TileID = targetTile;
-            target.NotifyStateChanged();
+            string tanda = stepAmount > 0 ? "+" : "";
+            UIController.Instance.AddModifierLog($"Dice {tanda}{stepAmount}");
         }
     }
 }

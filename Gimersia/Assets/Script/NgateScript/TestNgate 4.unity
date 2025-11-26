@@ -39687,13 +39687,13 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 4b958df28b7ac8b4896ca7e4dc79f4f1, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  ladderStepPrefab: {fileID: 0}
+  ladderStepPrefab: {fileID: 6528822957825618466, guid: ee299aa912ce12c4c95b3a4bebb4c921, type: 3}
   ladderDeployHeight: 10
   ladderDeploySpeed: 15
   ladderStepDelay: 0.05
   ladderVerticalOffset: 0.1
   ladderClimbDuration: 1.5
-  snakeParticle: {fileID: 0}
+  snakeParticle: {fileID: 4425129568585013132, guid: b458cb447b5242641933f79b7e66e1c1, type: 3}
   snakeAnimationHeight: -2
   snakeAnimationSpeed: 3
 --- !u!114 &1380648355

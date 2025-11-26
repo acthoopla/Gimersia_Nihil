@@ -72,8 +72,11 @@ public class TurnManager : MonoBehaviour
         state = TurnState.StrategyPhase;
         PlayerState p = currentPlayer;
 
-        EventBus.TurnStarted(p);
+        // 1. Reset status DULUAN (Supaya bersih)
         p.ResetTemporaryStatus();
+
+        // 2. BARU panggil EventBus (Supaya efek Tile Provocation/Despair masuk SETELAH reset)
+        EventBus.TurnStarted(p);
 
         currentDiceRoll = 0;
         if (diceController) diceController.ResetState();
@@ -83,8 +86,10 @@ public class TurnManager : MonoBehaviour
         {
             UIController.Instance.ShowModifierPanel();
             UIController.Instance.UpdateDiceText(0);
-            UIController.Instance.SetGoButtonInteractable(false); // Disable GO
+            UIController.Instance.SetGoButtonInteractable(false);
         }
+
+        Debug.Log($"[TurnManager] Giliran Dimulai: {p.name}");
     }
 
     private void HandleDiceResult(int result)
