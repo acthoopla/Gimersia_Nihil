@@ -12,6 +12,7 @@ public class BossState : MonoBehaviour
     [Header("References")]
     public Animator animator;
     public Transform hitPoint;
+    public BossAnimation bossAnimation;
 
     void Awake()
     {
@@ -40,7 +41,7 @@ public class BossState : MonoBehaviour
     {
         Debug.Log(">>> VICTORY: Boss Defeated! <<<");
 
-        if (animator != null) animator.SetTrigger("Die");
+        bossAnimation.PlayDeath();
 
         // Panggil UI Victory
         if (UIController.Instance != null)

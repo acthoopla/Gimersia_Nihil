@@ -13,8 +13,8 @@ MonoBehaviour:
   m_Name: DoubleEdge
   m_EditorClassIdentifier: 
   cardName: Double
-  description: Memberikan 2 kali demage dan menerima 2 kali damage
-  cardIcon: {fileID: 0}
+  description: Multiply 2x attack and damage taken
+  cardIcon: {fileID: 21300000, guid: 3da5000d401918846bb6720f36bbaefe, type: 3}
   cardPrefab: {fileID: 6135567647622964347, guid: 4b65a4b4789572941b8281a03d92a92e, type: 3}
   category: 4
   effects:

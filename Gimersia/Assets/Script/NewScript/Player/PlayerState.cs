@@ -30,6 +30,7 @@ public class PlayerState : MonoBehaviour
 
     [Header("References")]
     public NewPlayerPawn pawn;
+    public PlayerAnimation playerAnimation;
     public event Action<PlayerState> OnStateChanged;
 
     public bool IsHandFull => hand.Count >= maxHandSize;
@@ -59,6 +60,9 @@ public class PlayerState : MonoBehaviour
         {
             immuneStacks--;
             Debug.Log($"[Player] Damage {rawDamage} ditahan oleh Immune Stack!");
+
+            playerAnimation.PlayDefend();
+
             NotifyStateChanged();
             return;
         }
@@ -87,6 +91,8 @@ public class PlayerState : MonoBehaviour
         if (currentHP <= 0)
         {
             Debug.Log(">>> GAME OVER: Player HP Habis! <<<");
+
+            playerAnimation.PlayDeath();
 
             if (UIController.Instance != null)
                 UIController.Instance.ShowGameOver();

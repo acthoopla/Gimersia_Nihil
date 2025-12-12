@@ -6,18 +6,16 @@ using UnityEngine.SceneManagement;
 public class MainMenuManager : MonoBehaviour
 {
     [Header("Scene to Load")]
-    [Tooltip("Tulis nama Scene game kamu di sini. Pastikan sudah ada di Build Settings!")]
     public string gameSceneName = "GameScene"; // <-- Ganti "GameScene" di Inspector
 
     [Header("UI Panels")]
-    [Tooltip("Panel utama yang berisi tombol Play, Settings, Exit")]
     public GameObject mainMenuPanel;
-
-    [Tooltip("Panel yang muncul saat tombol Settings ditekan")]
     public GameObject settingsPanel;
-
-    [Tooltip("Panel yang muncul saat tombol Credit ditekan")]
     public GameObject creditPanel;
+    public GameObject tutorialPanel;
+
+    [Header("References")]
+    public SceneLoader sceneLoader;
 
     // --- Panggil saat game baru dimulai ---
     void Start()
@@ -27,6 +25,7 @@ public class MainMenuManager : MonoBehaviour
         mainMenuPanel.SetActive(true);
         settingsPanel.SetActive(false);
         creditPanel.SetActive(false);
+        tutorialPanel.SetActive(false);
     }
 
     // --- Fungsi Tombol Main Menu ---
@@ -34,7 +33,8 @@ public class MainMenuManager : MonoBehaviour
     public void OnPlayPressed()
     {
         Debug.Log($"Memuat scene: {gameSceneName}");
-        SceneManager.LoadScene(gameSceneName);
+        sceneLoader.LoadNextLevel(gameSceneName);
+        // SceneManager.LoadScene(gameSceneName);
     }
 
     public void OnSettingsPressed()
@@ -74,6 +74,18 @@ public class MainMenuManager : MonoBehaviour
     public void OnCloseSettingsPressed()
     {
         settingsPanel.SetActive(false);
+        mainMenuPanel.SetActive(true);
+    }
+
+    public void OnTutorialPressed()
+    {
+        mainMenuPanel.SetActive(false);
+        tutorialPanel.SetActive(true);
+    }
+
+    public void OnCloseTutorialPressed()
+    {
+        tutorialPanel.SetActive(false);
         mainMenuPanel.SetActive(true);
     }
 }

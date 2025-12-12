@@ -13,8 +13,8 @@ MonoBehaviour:
   m_Name: Move +3
   m_EditorClassIdentifier: 
   cardName: Move +3
-  description: Bergerak Maju 3 Langkah
-  cardIcon: {fileID: 0}
+  description: Move 3 extra tile
+  cardIcon: {fileID: 21300000, guid: 24d5d13a2d8ccd34d8c69b9cbd21d96f, type: 3}
   cardPrefab: {fileID: 6135567647622964347, guid: 4b65a4b4789572941b8281a03d92a92e, type: 3}
   category: 0
   effects:

@@ -43,6 +43,7 @@ public class CardVisual : MonoBehaviour, IPointerEnterHandler, IPointerExitHandl
     private CardHandHolder handHolder;
     private CardSelectionHolder selectionHolder;
     private BaseCard cardComponent;
+    private CardAudio cardAudio;
 
     private Vector3 targetPosition;
     private float targetRotationZ;
@@ -96,6 +97,7 @@ public class CardVisual : MonoBehaviour, IPointerEnterHandler, IPointerExitHandl
     {
         rectTransform = GetComponent<RectTransform>();
         cardComponent = GetComponent<BaseCard>();
+        cardAudio = GetComponent<CardAudio>();
     }
 
     private void SetupCanvas()
@@ -325,6 +327,7 @@ public class CardVisual : MonoBehaviour, IPointerEnterHandler, IPointerExitHandl
         CallCardPreUse();
         PrepareExitAnimation();
         PlayExitAnimation(exitDistance, -exitRotation, useStartScale, useEndScale, true);
+        cardAudio.PlayUseAudio();
     }
 
     public void AnimateDiscardCard()
@@ -332,6 +335,7 @@ public class CardVisual : MonoBehaviour, IPointerEnterHandler, IPointerExitHandl
         CleanupTweens();
         PrepareExitAnimation();
         PlayExitAnimation(-exitDistance, exitRotation, targetScale, discardEndScale, false);
+        cardAudio.PlayUseAudio();
     }
 
     private void CallCardPreUse()
@@ -445,6 +449,8 @@ public class CardVisual : MonoBehaviour, IPointerEnterHandler, IPointerExitHandl
 
         NotifyHolderOfHover(true);
         ShowTooltip();
+
+        cardAudio.PlayHoverAudio();
     }
 
     public void OnPointerExit(PointerEventData eventData)

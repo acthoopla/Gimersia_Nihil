@@ -13,8 +13,8 @@ MonoBehaviour:
   m_Name: Immune
   m_EditorClassIdentifier: 
   cardName: Immune
-  description: Terbebas dari serangan apapun sebanyak 1 kali
-  cardIcon: {fileID: 0}
+  description: Immune enemy damage
+  cardIcon: {fileID: 21300000, guid: 3389b3ce6ad2f6c4f83604240319b191, type: 3}
   cardPrefab: {fileID: 6135567647622964347, guid: 4b65a4b4789572941b8281a03d92a92e, type: 3}
   category: 1
   effects:
