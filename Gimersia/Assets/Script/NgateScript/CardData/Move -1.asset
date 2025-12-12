@@ -16,6 +16,7 @@ MonoBehaviour:
   description: Reduce 1 total move
   cardIcon: {fileID: 21300000, guid: fbc374b191fedcd4ebf78bf43575ea57, type: 3}
   cardPrefab: {fileID: 6135567647622964347, guid: 4b65a4b4789572941b8281a03d92a92e, type: 3}
+  previewMoveValue: -1
   category: 0
   effects:
   - {fileID: 11400000, guid: d785e7a8a6cc440458d15e1a80c0f833, type: 2}

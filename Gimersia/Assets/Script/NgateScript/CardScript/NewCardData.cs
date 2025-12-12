@@ -11,6 +11,9 @@ public class NewCardData : ScriptableObject
     public Sprite cardIcon; 
     public GameObject cardPrefab;
 
+    [Header("Highlight Settings")]
+    public int previewMoveValue = 0;
+
     [Header("Properties")]
     public CardCategory category;
 

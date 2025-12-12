@@ -31,11 +31,10 @@ public class CardSelectionHolder : MonoBehaviour
 
     private List<CardSlot> selectionSlots = new List<CardSlot>();
     private CardVisual hoveredCard;
-    private CardHandHolder cardHandHolder; // Variabel ini ada & aman
+    private CardHandHolder cardHandHolder;
     private List<BaseCard> cardsInSelection = new List<BaseCard>();
     private PlayerState currentPlayer;
 
-    // Helper untuk TurnManager
     public bool IsAnimating { get; private set; }
 
     #region Unity Methods
@@ -44,7 +43,6 @@ public class CardSelectionHolder : MonoBehaviour
         CreateSelectionSlots(maxCards);
         InitializeCardHandHolder();
 
-        // Setup Button Listeners
         if (useButton != null) useButton.GetComponent<Button>().onClick.AddListener(OnUseButtonClicked);
         if (discardButton != null) discardButton.GetComponent<Button>().onClick.AddListener(DiscardSelectedCards);
 
@@ -61,10 +59,7 @@ public class CardSelectionHolder : MonoBehaviour
     #region Initialization
     private void InitializeCardHandHolder()
     {
-        if (cardHandHolder == null)
-        {
-            cardHandHolder = FindObjectOfType<CardHandHolder>();
-        }
+        if (cardHandHolder == null) cardHandHolder = FindObjectOfType<CardHandHolder>();
     }
 
     public void CreateSelectionSlots(int count)
@@ -94,11 +89,9 @@ public class CardSelectionHolder : MonoBehaviour
     #endregion
 
     #region Card Management (ADD CARD NORMAL)
-    // Bagian ini sama persis dengan kode yang kamu bilang "jalannya bener"
     public bool AddCard(CardVisual card)
     {
         if (IsFull()) return false;
-
         CardSlot emptySlot = GetFirstEmptySlot();
         if (emptySlot == null) return false;
 
@@ -108,15 +101,12 @@ public class CardSelectionHolder : MonoBehaviour
 
     private void TransferCardToSelection(CardVisual card, CardSlot targetSlot)
     {
-        // 1. Lepas dari slot lama
         CardSlot originalSlot = card.GetSlot();
         originalSlot?.SetCard(null);
 
-        // 2. Update Data PlayerState & Hand Logic
         BaseCard cardComponent = card.GetCardComponent();
         if (cardComponent != null)
         {
-            // Pastikan CardHandHolder terinisialisasi
             if (cardHandHolder == null) InitializeCardHandHolder();
 
             cardHandHolder?.RemoveCardFromHand(cardComponent);
@@ -125,15 +115,15 @@ public class CardSelectionHolder : MonoBehaviour
             if (currentPlayer != null)
             {
                 currentPlayer.SelectCardToSlot(cardComponent.GetCardData());
+
+                UpdateHighlight();
             }
         }
 
-        // 3. Update Visual Slot Baru
         card.SetSlot(targetSlot);
         card.SetInSelectionHolder(true);
         targetSlot.SetCard(card);
 
-        // 4. Animasi Pindah
         Vector3 finalWorldPos = CalculateCardFinalWorldPosition(targetSlot);
         card.StartTransitionTo(targetSlot.transform, finalWorldPos);
 
@@ -149,6 +139,8 @@ public class CardSelectionHolder : MonoBehaviour
         if (logicCard != null && currentPlayer != null)
         {
             currentPlayer.ReturnCardToHand(logicCard.GetData());
+
+            UpdateHighlight();
         }
 
         CardSlot currentSlot = card.GetSlot();
@@ -173,14 +165,11 @@ public class CardSelectionHolder : MonoBehaviour
     #endregion
 
     #region Use Cards (DOUBLE TRIGGER FIX)
-
     public void OnUseButtonClicked()
     {
-        // Manual Use: TRUE -> Jalankan Logic
         StartCoroutine(AnimateUseCards(true));
     }
 
-    // Method ini dipanggil TurnManager dengan parameter FALSE
     public IEnumerator AnimateUseCards(bool executeLogic)
     {
         IsAnimating = true;
@@ -195,28 +184,20 @@ public class CardSelectionHolder : MonoBehaviour
             CardVisual visual = visualsToUse[i];
             if (visual != null)
             {
-                // [LOGIC GUARD]
-                // Hanya jalankan logic kartu di sini jika dipanggil manual (Tombol USE).
-                // Jika dari TurnManager (Tombol GO), logic dilewati agar tidak double trigger.
                 if (executeLogic)
                 {
                     var logicComp = visual.GetComponent<GameCard>();
                     if (logicComp != null)
                     {
                         NewCardData data = logicComp.GetCardData();
-
-                        // Jalankan Efek
                         if (currentPlayer != null)
                         {
                             data.Play(currentPlayer);
                             currentPlayer.ConsumeSelectedCard(data);
                         }
-
                         if (UIController.Instance != null) UIController.Instance.AddModifierLog(data.cardName);
                     }
                 }
-
-                // Animasi visual selalu jalan
                 visual.AnimateUseCard();
             }
             yield return new WaitForSeconds(0.3f);
@@ -225,8 +206,11 @@ public class CardSelectionHolder : MonoBehaviour
         yield return new WaitForSeconds(0.5f);
         DestroyCards(visualsToUse);
         ClearSelectionList();
+
+        UpdateHighlight();
+
         IsAnimating = false;
-        UpdateButtonVisibility(); // Pastikan tombol sembunyi
+        UpdateButtonVisibility();
     }
     #endregion
 
@@ -249,6 +233,7 @@ public class CardSelectionHolder : MonoBehaviour
                 var comp = cardVisual.GetCardComponent();
                 if (comp != null) currentPlayer.ConsumeSelectedCard(comp.GetCardData());
             }
+            UpdateHighlight();
         }
 
         foreach (var visual in cardsToDiscard)
@@ -265,7 +250,7 @@ public class CardSelectionHolder : MonoBehaviour
     }
     #endregion
 
-    #region Helpers
+    #region Helpers & Positioning (UNCHANGED)
     public float GetSelectedScale() => selectedScale;
     public void SetHoveredCard(CardVisual card) => hoveredCard = card;
     public float GetCardMoveSpeed() => cardMoveSpeed;
@@ -289,7 +274,6 @@ public class CardSelectionHolder : MonoBehaviour
         foreach (var c in cards) if (c != null) Destroy(c.gameObject);
     }
     private void ClearSelectionList() => cardsInSelection.Clear();
-
     private CardSlot GetFirstEmptySlot() => selectionSlots.FirstOrDefault(s => !s.HasCard());
     public bool IsFull() => selectionSlots.All(s => s.HasCard());
     public int GetCardCount() => selectionSlots.Count(s => s.HasCard());
@@ -305,28 +289,20 @@ public class CardSelectionHolder : MonoBehaviour
         if (useButton) useButton.SetActive(false);
         if (discardButton) discardButton.SetActive(false);
     }
-    #endregion
 
-    #region Positioning
     private void UpdateCardPositions()
     {
         List<CardSlot> occupiedSlots = selectionSlots.Where(s => s.HasCard()).ToList();
-        for (int i = 0; i < occupiedSlots.Count; i++)
-        {
-            UpdateSingleCardPosition(occupiedSlots[i], i, occupiedSlots.Count);
-        }
+        for (int i = 0; i < occupiedSlots.Count; i++) UpdateSingleCardPosition(occupiedSlots[i], i, occupiedSlots.Count);
     }
 
     private void UpdateSingleCardPosition(CardSlot slot, int index, int totalCards)
     {
         CardVisual card = slot.GetCard();
         if (card == null || card.IsTransitioning()) return;
-
         Vector3 localPos = CalculateCardLocalPosition(index, totalCards);
         float scale = (card.IsHovered() && hoveredCard == card) ? hoverScale : selectedScale;
-
         if (card.IsHovered() && hoveredCard == card) localPos.y += hoverYOffset;
-
         card.SetTargetPosition(localPos);
         card.SetTargetRotation(0f);
         card.SetTargetScale(scale);
@@ -340,9 +316,21 @@ public class CardSelectionHolder : MonoBehaviour
         return new Vector3(startX + (index * cardSpacing), 0, 0);
     }
 
-    private Vector3 CalculateCardFinalWorldPosition(CardSlot targetSlot)
+    private Vector3 CalculateCardFinalWorldPosition(CardSlot targetSlot) => targetSlot.transform.position;
+
+    private void UpdateHighlight()
     {
-        return targetSlot.transform.position;
+        if (TileHighlighter.Instance == null || TurnManager.Instance == null) return;
+
+        int dice = TurnManager.Instance.GetCurrentDiceRoll();
+
+        int mod = 0;
+        if (currentPlayer != null)
+        {
+            mod = currentPlayer.CalculatePendingMoveModifier();
+        }
+
+        TileHighlighter.Instance.PreviewDestination(currentPlayer, dice, mod);
     }
     #endregion
 }

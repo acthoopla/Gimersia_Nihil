@@ -209,6 +209,31 @@ public class PlayerState : MonoBehaviour
         NotifyStateChanged();
     }
 
+    public int CalculatePendingMoveModifier()
+    {
+        int total = 0;
+
+        foreach (var card in pendingQueue)
+        {
+            if (card != null && card.category == NewCardSystem.CardCategory.Movement)
+            {
+                total += card.previewMoveValue;
+            }
+        }
+
+        foreach (var card in selectedCards)
+        {
+            if (card != null && card.category == NewCardSystem.CardCategory.Movement)
+            {
+                total += card.previewMoveValue;
+            }
+        }
+
+        total += nextRollModifier;
+
+        return total;
+    }
+
     public void SetHP(int hp) { currentHP = hp; NotifyStateChanged(); }
     public void AddImmunityStack(int amt) { immuneStacks += amt; NotifyStateChanged(); }
     public void SetReflect(int mult) { reflectMultiplier = mult; NotifyStateChanged(); }

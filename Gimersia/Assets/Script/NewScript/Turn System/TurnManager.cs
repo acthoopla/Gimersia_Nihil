@@ -111,6 +111,11 @@ public class TurnManager : MonoBehaviour
             UIController.Instance.UpdateDiceText(result);
             UIController.Instance.SetGoButtonInteractable(true);
         }
+
+        if (TileHighlighter.Instance != null)
+        {
+            TileHighlighter.Instance.PreviewDestination(currentPlayer, currentDiceRoll, currentPlayer.CalculatePendingMoveModifier());
+        }
     }
 
     private IEnumerator ExecuteTurnRoutine()
@@ -121,6 +126,7 @@ public class TurnManager : MonoBehaviour
         if (UIController.Instance) UIController.Instance.SetGoButtonInteractable(false);
         if (diceInputHandler) diceInputHandler.InputEnabled = false;
         if (UIController.Instance) UIController.Instance.HideModifierPanel();
+        if (TileHighlighter.Instance != null) TileHighlighter.Instance.HideHighlight();
 
         // 1. KARTU OTOMATIS (Jika di slot masih ada)
         if (cardSelectionHolder != null && cardSelectionHolder.GetCardCount() > 0)
@@ -218,4 +224,7 @@ public class TurnManager : MonoBehaviour
     {
         if (player == currentPlayer) awaitingTileResolve = false;
     }
+
+    public int GetCurrentDiceRoll() => currentDiceRoll;
+    public PlayerState GetCurrentPlayer() => currentPlayer;
 }
