@@ -94,6 +94,9 @@ public class UIController : MonoBehaviour
         }
 
         UpdatePlayerUI(playerState);
+
+        // Nonaktifkan tombol Go di awal permainan
+        SetGoButtonInteractable(false);
     }
 
     void OnEnable()
@@ -222,12 +225,18 @@ public class UIController : MonoBehaviour
     public void UpdateDiceText(int result)
     {
         if (diceRollText != null) diceRollText.text = "Roll: " + result;
+
+        // Tambahkan kode untuk mengaktifkan tombol Go
+        SetGoButtonInteractable(true);
     }
 
     private void HandleTurnReset(PlayerState p)
     {
         if (diceRollText != null) diceRollText.text = "Roll: -";
         if (modifierLogText != null) modifierLogText.text = "";
+
+        // Nonaktifkan tombol Go sampai dadu dilempar
+        SetGoButtonInteractable(false);
     }
 
     public void ShowModifierPanel() { if (modifierPanel) modifierPanel.SetActive(true); }

@@ -95,11 +95,15 @@ public class TurnManager : MonoBehaviour
             UIController.Instance.UpdateDiceText(0);
             UIController.Instance.SetGoButtonInteractable(false); // GO Mati sampai dadu dilempar
         }
+
+        // FIX: Clear highlight saat turn baru dimulai
+        ClearTilePreview();
     }
 
     private void HandleDiceResult(int result)
     {
         if (state != TurnState.StrategyPhase) return;
+
         currentDiceRoll = result;
 
         // [REQ] Matikan dadu setelah dilempar
@@ -112,10 +116,20 @@ public class TurnManager : MonoBehaviour
             UIController.Instance.SetGoButtonInteractable(true);
         }
 
+        // UPDATE: Gunakan TileHighlighter yang baru
         if (TileHighlighter.Instance != null)
         {
-            TileHighlighter.Instance.PreviewDestination(currentPlayer, currentDiceRoll, currentPlayer.CalculatePendingMoveModifier());
+            TileHighlighter.Instance.PreviewDestination(
+                currentPlayer,
+                currentDiceRoll,
+                currentPlayer.CalculatePendingMoveModifier()
+            );
         }
+
+        // Log untuk debugging
+        #if UNITY_EDITOR || DEVELOPMENT_BUILD
+        Debug.Log($"[TurnManager] Dice rolled: {result}. Preview shown.");
+        #endif
     }
 
     private IEnumerator ExecuteTurnRoutine()
@@ -126,7 +140,9 @@ public class TurnManager : MonoBehaviour
         if (UIController.Instance) UIController.Instance.SetGoButtonInteractable(false);
         if (diceInputHandler) diceInputHandler.InputEnabled = false;
         if (UIController.Instance) UIController.Instance.HideModifierPanel();
-        if (TileHighlighter.Instance != null) TileHighlighter.Instance.HideHighlight();
+
+        // FIX: Clear highlight SEBELUM mulai eksekusi
+        ClearTilePreview();
 
         // 1. KARTU OTOMATIS (Jika di slot masih ada)
         if (cardSelectionHolder != null && cardSelectionHolder.GetCardCount() > 0)
@@ -166,15 +182,29 @@ public class TurnManager : MonoBehaviour
             EventBus.TurnEnded(currentPlayer);
             AdvanceToNextPlayer();
         }
+
+        // FIX: Clear highlight lagi setelah turn selesai (safety)
+        ClearTilePreview();
     }
 
     private void AdvanceToNextPlayer()
     {
         if (players.Count == 0) return;
+
+        // FIX: Clear highlight saat ganti player
+        ClearTilePreview();
+
         currentIndex = (currentIndex + 1) % players.Count;
         StartTurn();
     }
 
+    public void ClearTilePreview()
+    {
+        if (TileHighlighter.Instance != null)
+        {
+            TileHighlighter.Instance.HideHighlight();
+        }
+    }
     // ===========================================================================
     // MOVEMENT & TILE LOGIC
     // ===========================================================================

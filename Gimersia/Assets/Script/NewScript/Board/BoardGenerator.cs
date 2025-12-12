@@ -4,13 +4,13 @@ using System.Linq;
 using UnityEngine;
 
 /// <summary>
-/// BoardGenerator v1.0 - Final
+/// BoardGenerator v1.1 - Dengan Batasan Tangga & Ular
 /// - Generate board tile types per row (10 tile/row)
 /// - Pools per row:
 ///     * CardPool: 2 slots (random among CardRandom/CardMovement/CardBuff)
 ///     * Negatile: 2 damage + 1 debuff (disarm/provocation/despair random)
 ///     * Attack: 3 slots
-/// - Snake & Ladder placement replaces only Normal tiles (not special tiles)
+/// - Snake & Ladder placement dengan batasan tinggi/panjang
 /// - Tile #1 forced Normal; last tile forced Damage/Instant-death (TileType.Damage used as instant damage)
 /// - Requires BoardManager with GetTileByID, GetAllTilesOrdered, BuildLookupFromList
 /// - Requires Tiles.SetType(TileType, bool) and Tiles.SetCracked() + Tiles.UpdateVisualModel()
@@ -42,18 +42,49 @@ public class BoardGenerator : MonoBehaviour
     [Tooltip("Attack slots per row")]
     public int attackPerRow = 3;
 
-    [Header("Snakes & Ladders")]
+    [Header("Snakes & Ladders - Count")]
     [Tooltip("Number of ladders")]
     public int ladderCount = 3;
+
     [Tooltip("Number of snakes")]
     public int snakeCount = 3;
+
+    [Header("Ladder Constraints")]
+    [Tooltip("Maximum rows a ladder can climb (default 4)")]
+    [Range(1, 10)]
+    public int maxLadderClimbRows = 4;
+
+    [Tooltip("Minimum rows a ladder must climb (default 2)")]
+    [Range(1, 10)]
+    public int minLadderClimbRows = 2;
+
+    [Tooltip("Minimum spacing between ladder foot rows (default 3)")]
+    [Range(1, 10)]
+    public int ladderRowSpacing = 3;
+
+    [Header("Snake Constraints")]
+    [Tooltip("Maximum rows a snake can descend (default 4)")]
+    [Range(1, 10)]
+    public int maxSnakeLengthRows = 4;
+
+    [Tooltip("Minimum rows a snake must descend (default 2)")]
+    [Range(1, 10)]
+    public int minSnakeLengthRows = 2;
+
+    [Tooltip("Minimum spacing between snake head rows (default 3)")]
+    [Range(1, 10)]
+    public int snakeRowSpacing = 3;
 
     [Header("Generation options")]
     public bool useSeed = false;
     public int randomSeed = 12345;
     public bool autoGenerateOnStart = false;
+
     [Range(0f, 1f)]
     public float crackedChance = 0.05f;
+
+    [Tooltip("Maximum attempts to place each ladder/snake before giving up")]
+    public int maxPlacementAttempts = 2000;
 
     private System.Random rng;
 
@@ -77,16 +108,20 @@ public class BoardGenerator : MonoBehaviour
             return;
         }
 
-        // prefer BoardManager's declared totalTilesInBoard if exists
+        // Ambil totalTilesInBoard dari BoardManager jika ada
         try
         {
-            totalTilesInBoard = boardManager.totalTilesInBoard;
+            if (boardManager.totalTilesInBoard > 0)
+                totalTilesInBoard = boardManager.totalTilesInBoard;
         }
-        catch { /* ignore */ }
+        catch (Exception e)
+        {
+            Debug.LogWarning($"[BoardGenerator] Error reading boardManager.totalTilesInBoard: {e.Message}");
+        }
 
         int rows = Math.Max(1, totalTilesInBoard / tilesPerRow);
         if (rows * tilesPerRow != totalTilesInBoard)
-            Debug.LogWarning("[BoardGenerator] totalTilesInBoard not divisible by tilesPerRow; using floor(rows).");
+            Debug.LogWarning($"[BoardGenerator] totalTilesInBoard ({totalTilesInBoard}) not divisible by tilesPerRow ({tilesPerRow}); using {rows} rows.");
 
         var allTiles = boardManager.GetAllTilesOrdered();
         if (allTiles == null || allTiles.Count == 0)
@@ -96,6 +131,23 @@ public class BoardGenerator : MonoBehaviour
         }
 
         int usableTotal = Math.Min(totalTilesInBoard, allTiles.Count);
+
+        // Validasi constraints
+        if (minLadderClimbRows > maxLadderClimbRows)
+        {
+            Debug.LogWarning("[BoardGenerator] minLadderClimbRows > maxLadderClimbRows, swapping values.");
+            int temp = minLadderClimbRows;
+            minLadderClimbRows = maxLadderClimbRows;
+            maxLadderClimbRows = temp;
+        }
+
+        if (minSnakeLengthRows > maxSnakeLengthRows)
+        {
+            Debug.LogWarning("[BoardGenerator] minSnakeLengthRows > maxSnakeLengthRows, swapping values.");
+            int temp = minSnakeLengthRows;
+            minSnakeLengthRows = maxSnakeLengthRows;
+            maxSnakeLengthRows = temp;
+        }
 
         // Reset all tiles to Normal
         for (int id = 1; id <= usableTotal; id++)
@@ -117,17 +169,39 @@ public class BoardGenerator : MonoBehaviour
         // reserved: set of tileIDs already used by snake/ladder or pool placement to avoid overwriting
         HashSet<int> reserved = new HashSet<int>();
 
-        // --- Place ladders (foot < top). Ensure foot rows spacing >= 3
+        // --- Place ladders dengan batasan tinggi ---
         List<int> ladderFootRows = new List<int>();
         int placedLadders = 0;
         int attempts = 0;
-        while (placedLadders < ladderCount && attempts < 2000)
+
+        Debug.Log($"[BoardGenerator] Placing ladders with constraints: Min={minLadderClimbRows}, Max={maxLadderClimbRows}, Spacing={ladderRowSpacing}");
+
+        while (placedLadders < ladderCount && attempts < maxPlacementAttempts)
         {
             attempts++;
-            int footRow = rng.Next(1, rows); // foot cannot be last row
-            if (ladderFootRows.Any(r => Math.Abs(r - footRow) < 3)) continue; // spacing rule
-            int topRow = rng.Next(footRow + 1, rows + 1);
 
+            // Foot row harus memiliki ruang untuk naik minimal minLadderClimbRows
+            // Foot row maksimal adalah rows - minLadderClimbRows (karena harus bisa naik minimal minLadderClimbRows)
+            int maxFootRow = rows - minLadderClimbRows;
+            if (maxFootRow < 1)
+            {
+                Debug.LogWarning("[BoardGenerator] Board too small for ladder constraints. Skipping ladder placement.");
+                break;
+            }
+
+            int footRow = rng.Next(1, maxFootRow + 1); // foot tidak bisa di last row
+
+            // Spacing rule: jarak minimal antar ladder foot
+            if (ladderFootRows.Any(r => Math.Abs(r - footRow) < ladderRowSpacing)) continue;
+
+            // Tentukan range untuk top row berdasarkan batasan
+            int minTopRow = footRow + minLadderClimbRows;
+            int maxTopRow = Math.Min(rows, footRow + maxLadderClimbRows);
+
+            // Jika tidak ada ruang yang valid, skip
+            if (minTopRow > maxTopRow) continue;
+
+            int topRow = rng.Next(minTopRow, maxTopRow + 1);
             int footCol = rng.Next(1, tilesPerRow + 1);
             int topCol = rng.Next(1, tilesPerRow + 1);
 
@@ -150,21 +224,48 @@ public class BoardGenerator : MonoBehaviour
             reserved.Add(topID);
             ladderFootRows.Add(footRow);
             placedLadders++;
-        }
-        if (placedLadders < ladderCount)
-            Debug.LogWarning($"[BoardGenerator] hanya menempatkan {placedLadders}/{ladderCount} ladder(s).");
 
-        // --- Place snakes (head above tail). Ensure head rows spacing >= 3
+            Debug.Log($"Placed ladder: {footID}(row {footRow}) -> {topID}(row {topRow}), height={topRow - footRow} rows");
+        }
+
+        if (placedLadders < ladderCount)
+            Debug.LogWarning($"[BoardGenerator] hanya menempatkan {placedLadders}/{ladderCount} ladder(s) setelah {attempts} attempts.");
+        else
+            Debug.Log($"[BoardGenerator] Berhasil menempatkan semua {ladderCount} ladder(s)");
+
+        // --- Place snakes dengan batasan panjang ---
         List<int> snakeHeadRows = new List<int>();
         int placedSnakes = 0;
         attempts = 0;
-        while (placedSnakes < snakeCount && attempts < 2000)
+
+        Debug.Log($"[BoardGenerator] Placing snakes with constraints: Min={minSnakeLengthRows}, Max={maxSnakeLengthRows}, Spacing={snakeRowSpacing}");
+
+        while (placedSnakes < snakeCount && attempts < maxPlacementAttempts)
         {
             attempts++;
-            int headRow = rng.Next(2, rows + 1); // head cannot be row 1
-            if (snakeHeadRows.Any(r => Math.Abs(r - headRow) < 3)) continue;
-            int tailRow = rng.Next(1, headRow);
 
+            // Head row harus memiliki ruang untuk turun minimal minSnakeLengthRows
+            // Head row minimal adalah 1 + minSnakeLengthRows (karena harus bisa turun minimal minSnakeLengthRows)
+            int minHeadRow = 1 + minSnakeLengthRows;
+            if (minHeadRow > rows)
+            {
+                Debug.LogWarning("[BoardGenerator] Board too small for snake constraints. Skipping snake placement.");
+                break;
+            }
+
+            int headRow = rng.Next(minHeadRow, rows + 1); // head minimal di row 2 (karena minSnakeLengthRows >= 2)
+
+            // Spacing rule: jarak minimal antar snake head
+            if (snakeHeadRows.Any(r => Math.Abs(r - headRow) < snakeRowSpacing)) continue;
+
+            // Tentukan range untuk tail row berdasarkan batasan
+            int maxTailRow = headRow - minSnakeLengthRows;
+            int minTailRow = Math.Max(1, headRow - maxSnakeLengthRows);
+
+            // Jika tidak ada ruang yang valid, skip
+            if (minTailRow > maxTailRow) continue;
+
+            int tailRow = rng.Next(minTailRow, maxTailRow + 1);
             int headCol = rng.Next(1, tilesPerRow + 1);
             int tailCol = rng.Next(1, tilesPerRow + 1);
 
@@ -187,11 +288,16 @@ public class BoardGenerator : MonoBehaviour
             reserved.Add(tailID);
             snakeHeadRows.Add(headRow);
             placedSnakes++;
-        }
-        if (placedSnakes < snakeCount)
-            Debug.LogWarning($"[BoardGenerator] hanya menempatkan {placedSnakes}/{snakeCount} snake(s).");
 
-        // --- Fill each row with pools
+            Debug.Log($"Placed snake: {headID}(row {headRow}) -> {tailID}(row {tailRow}), length={headRow - tailRow} rows");
+        }
+
+        if (placedSnakes < snakeCount)
+            Debug.LogWarning($"[BoardGenerator] hanya menempatkan {placedSnakes}/{snakeCount} snake(s) setelah {attempts} attempts.");
+        else
+            Debug.Log($"[BoardGenerator] Berhasil menempatkan semua {snakeCount} snake(s)");
+
+        // --- Fill each row with pools (sisa kode tidak berubah) ---
         for (int r = 1; r <= rows; r++)
         {
             List<int> rowIDs = new List<int>();
@@ -300,7 +406,12 @@ public class BoardGenerator : MonoBehaviour
             t.UpdateVisualModel();
         }
 
-        Debug.Log("[BoardGenerator] GenerateBoard complete.");
+        // Log statistik akhir
+        int totalSpecialTiles = reserved.Count;
+        int totalNormalTiles = usableTotal - totalSpecialTiles - 2; // -2 untuk tile 1 dan terakhir
+        Debug.Log($"[BoardGenerator] GenerateBoard complete. " +
+                  $"Tiles: {usableTotal} total, {totalSpecialTiles} special, {totalNormalTiles} normal, " +
+                  $"{placedLadders} ladders, {placedSnakes} snakes");
     }
 
     // helper: checks if id is a valid normal slot (not tile1, not last, not reserved, and currently Normal)
@@ -312,5 +423,23 @@ public class BoardGenerator : MonoBehaviour
         Tiles t = boardManager.GetTileByID(id);
         if (t == null) return false;
         return t.type == TileType.Normal;
+    }
+
+    [ContextMenu("Validate Constraints")]
+    public void ValidateConstraints()
+    {
+        if (minLadderClimbRows > maxLadderClimbRows)
+            Debug.LogError($"Ladder: min ({minLadderClimbRows}) > max ({maxLadderClimbRows})");
+
+        if (minSnakeLengthRows > maxSnakeLengthRows)
+            Debug.LogError($"Snake: min ({minSnakeLengthRows}) > max ({maxSnakeLengthRows})");
+
+        if (maxLadderClimbRows > 10)
+            Debug.LogWarning($"maxLadderClimbRows ({maxLadderClimbRows}) is quite large for 10-row board");
+
+        if (maxSnakeLengthRows > 10)
+            Debug.LogWarning($"maxSnakeLengthRows ({maxSnakeLengthRows}) is quite large for 10-row board");
+
+        Debug.Log("[BoardGenerator] Constraints validation complete.");
     }
 }
