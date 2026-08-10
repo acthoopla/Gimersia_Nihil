@@ -1,2 +1,2 @@
 # Gimersia_Nihil
-Kami Hitam
+Gimersia INSPIRE Game Jam 2025
